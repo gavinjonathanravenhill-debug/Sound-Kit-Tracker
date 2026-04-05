@@ -1115,7 +1115,13 @@
     const video = document.getElementById('scannerVideo');
     const status = document.getElementById('scannerStatus');
 
-    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+    navigator.mediaDevices.getUserMedia({
+      video: {
+        facingMode: 'environment',
+        width: { ideal: 1280 },
+        height: { ideal: 720 }
+      }
+    })
       .then(stream => {
         scanStream = stream;
         video.srcObject = stream;
@@ -1154,7 +1160,7 @@
         const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
         if (typeof jsQR === 'function') {
           const code = jsQR(imageData.data, imageData.width, imageData.height, {
-            inversionAttempts: 'dontInvert'
+            inversionAttempts: 'attemptBoth'
           });
           if (code && code.data) {
             cancelAnimationFrame(scanInterval);
