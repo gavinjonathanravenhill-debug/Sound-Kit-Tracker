@@ -1,0 +1,1357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sound Kit Tracker</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+
+  :root {
+    --bg: #0a0a0f;
+    --surface: #12121a;
+    --surface2: #1a1a26;
+    --border: #2a2a3a;
+    --border-active: #4a4a6a;
+    --text: #e8e8f0;
+    --text-dim: #8888a0;
+    --accent: #00ff88;
+    --accent-dim: #00ff8830;
+    --red: #ff4466;
+    --red-dim: #ff446630;
+    --amber: #ffaa00;
+    --amber-dim: #ffaa0030;
+    --blue: #4488ff;
+    --mono: 'JetBrains Mono', monospace;
+    --sans: 'Space Grotesk', sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  .app-header {
+    padding: 24px 32px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+
+  .app-title {
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .app-title .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 12px var(--accent);
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  .header-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  button {
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 600;
+    padding: 8px 16px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--text);
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+
+  button:hover {
+    border-color: var(--border-active);
+    background: var(--surface2);
+  }
+
+  button.primary {
+    background: var(--accent);
+    color: var(--bg);
+    border-color: var(--accent);
+  }
+
+  button.primary:hover {
+    box-shadow: 0 0 20px var(--accent-dim);
+  }
+
+  button.danger {
+    color: var(--red);
+    border-color: var(--red);
+  }
+
+  button.danger:hover {
+    background: var(--red-dim);
+  }
+
+  .stats-bar {
+    display: flex;
+    gap: 24px;
+    padding: 16px 32px;
+    border-bottom: 1px solid var(--border);
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text-dim);
+    flex-wrap: wrap;
+  }
+
+  .stat-item span {
+    color: var(--text);
+    font-weight: 600;
+  }
+
+  .stat-item.checked-out span { color: var(--red); }
+  .stat-item.checked-in span { color: var(--accent); }
+
+  /* Scanner Overlay */
+  .scanner-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    background: rgba(0,0,0,0.95);
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 24px;
+  }
+
+  .scanner-overlay.active { display: flex; }
+
+  .scanner-viewport {
+    width: 320px;
+    height: 320px;
+    border: 2px solid var(--accent);
+    border-radius: 12px;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .scanner-viewport video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .scan-line {
+    position: absolute;
+    width: 100%;
+    height: 2px;
+    background: var(--accent);
+    box-shadow: 0 0 20px var(--accent);
+    animation: scanMove 2s linear infinite;
+  }
+
+  @keyframes scanMove {
+    0% { top: 0; }
+    100% { top: 100%; }
+  }
+
+  .scanner-status {
+    font-family: var(--mono);
+    font-size: 14px;
+    color: var(--accent);
+  }
+
+  /* Modal */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 900;
+    background: rgba(0,0,0,0.8);
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+
+  .modal-overlay.active { display: flex; }
+
+  .modal {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 28px;
+    width: 100%;
+    max-width: 500px;
+  }
+
+  .modal h3 {
+    font-size: 16px;
+    margin-bottom: 20px;
+    font-weight: 600;
+  }
+
+  .form-group {
+    margin-bottom: 16px;
+  }
+
+  .form-group label {
+    display: block;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-bottom: 6px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  .form-group input, .form-group textarea, .form-group select {
+    width: 100%;
+    padding: 10px 14px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 13px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+
+  .form-group input:focus, .form-group textarea:focus {
+    border-color: var(--accent);
+  }
+
+  .form-group textarea {
+    resize: vertical;
+    min-height: 60px;
+  }
+
+  .modal-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+    margin-top: 20px;
+  }
+
+  .filter-bar {
+    display: flex;
+    gap: 10px;
+    padding: 12px 32px;
+    border-bottom: 1px solid var(--border);
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .filter-bar input {
+    flex: 1;
+    min-width: 200px;
+    padding: 8px 14px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 12px;
+    outline: none;
+  }
+
+  .filter-bar input:focus { border-color: var(--accent); }
+
+  .filter-bar select {
+    padding: 8px 12px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 12px;
+    outline: none;
+  }
+
+  .filter-bar .filter-count {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+
+  .owner-tag {
+    font-family: var(--mono);
+    font-size: 10px;
+    padding: 2px 6px;
+    border-radius: 3px;
+    background: #1a2a3a;
+    border: 1px solid #2a3a5a;
+    color: var(--blue);
+    margin-right: 4px;
+  }
+
+  /* Table */
+  .table-wrap {
+    overflow-x: auto;
+    padding: 0 16px 24px;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    min-width: 800px;
+  }
+
+  thead th {
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-dim);
+    padding: 14px 16px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    background: var(--bg);
+  }
+
+  tbody tr {
+    border-bottom: 1px solid var(--border);
+    transition: background 0.1s;
+  }
+
+  tbody tr:hover {
+    background: var(--surface);
+  }
+
+  tbody tr.just-scanned {
+    animation: scanFlash 1.5s ease-out;
+  }
+
+  @keyframes scanFlash {
+    0% { background: var(--accent-dim); }
+    100% { background: transparent; }
+  }
+
+  td {
+    padding: 12px 16px;
+    vertical-align: middle;
+  }
+
+  .item-name {
+    font-weight: 600;
+  }
+
+  .serial {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+
+  .category-tag {
+    font-family: var(--mono);
+    font-size: 10px;
+    padding: 3px 8px;
+    border-radius: 4px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    text-transform: uppercase;
+  }
+
+  .status-badge {
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: 4px;
+    text-transform: uppercase;
+  }
+
+  .status-in {
+    background: var(--accent-dim);
+    color: var(--accent);
+    border: 1px solid var(--accent);
+  }
+
+  .status-out {
+    background: var(--red-dim);
+    color: var(--red);
+    border: 1px solid var(--red);
+  }
+
+  .timestamp {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+
+  .notes-cell {
+    max-width: 200px;
+    font-size: 12px;
+    color: var(--text-dim);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .qr-thumb {
+    width: 40px;
+    height: 40px;
+    border-radius: 4px;
+    cursor: pointer;
+    border: 1px solid var(--border);
+    transition: transform 0.15s;
+  }
+
+  .qr-thumb:hover {
+    transform: scale(1.3);
+    border-color: var(--accent);
+  }
+
+  .actions-cell {
+    display: flex;
+    gap: 6px;
+  }
+
+  .actions-cell button {
+    padding: 5px 10px;
+    font-size: 11px;
+  }
+
+  /* Print QR Modal */
+  .print-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 16px;
+    max-height: 400px;
+    overflow-y: auto;
+    padding: 4px;
+  }
+
+  .print-card {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    text-align: center;
+    background: var(--surface2);
+  }
+
+  .print-card canvas {
+    margin: 0 auto 8px;
+  }
+
+  .print-card .pc-name {
+    font-size: 12px;
+    font-weight: 600;
+    margin-bottom: 2px;
+  }
+
+  .print-card .pc-serial {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-dim);
+  }
+
+  .empty-state {
+    text-align: center;
+    padding: 80px 32px;
+    color: var(--text-dim);
+  }
+
+  .empty-state h3 {
+    font-size: 18px;
+    margin-bottom: 8px;
+    color: var(--text);
+  }
+
+  .empty-state p {
+    font-size: 14px;
+    margin-bottom: 24px;
+  }
+
+  /* Toast */
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%) translateY(100px);
+    background: var(--surface);
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    font-family: var(--mono);
+    font-size: 13px;
+    padding: 12px 24px;
+    border-radius: 8px;
+    z-index: 2000;
+    transition: transform 0.3s;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  }
+
+  .toast.show { transform: translateX(-50%) translateY(0); }
+  .toast.error { border-color: var(--red); color: var(--red); }
+
+  /* Print styles */
+  @media print {
+    body { background: #fff; color: #000; }
+    .app-header, .stats-bar, .header-actions, .actions-cell,
+    .scanner-overlay, .modal-overlay, .toast, button { display: none !important; }
+    table { min-width: unset; }
+    .status-in, .status-out { border: 1px solid #000; background: none; color: #000; }
+  }
+
+  /* QR Print page */
+  .qr-print-page {
+    display: none;
+  }
+
+  @media print {
+    .qr-print-page {
+      display: block !important;
+      page-break-before: always;
+    }
+    .qr-print-page .qr-label {
+      display: inline-block;
+      width: 45%;
+      margin: 8px 2%;
+      text-align: center;
+      border: 1px dashed #ccc;
+      padding: 12px;
+      page-break-inside: avoid;
+    }
+    .qr-print-page .qr-label .ql-name {
+      font-weight: bold;
+      font-size: 11px;
+      margin-top: 6px;
+    }
+    .qr-print-page .qr-label .ql-serial {
+      font-size: 9px;
+      color: #666;
+    }
+  }
+</style>
+</head>
+<body>
+
+<div class="app-header">
+  <div class="app-title"><div class="dot"></div> Sound Kit Tracker</div>
+  <div class="header-actions">
+    <button onclick="openScanner()">&#9655; Scan QR</button>
+    <button onclick="openAddModal()">+ Add Item</button>
+    <button onclick="openPrintModal()">Print QR Labels</button>
+    <button onclick="exportCSV()">Export CSV</button>
+    <button onclick="openImportModal()">Import CSV</button>
+    <button class="danger" onclick="resetData()">Reset</button>
+  </div>
+</div>
+
+<div class="stats-bar">
+  <div class="stat-item">Total: <span id="statTotal">0</span></div>
+  <div class="stat-item checked-in">In Store: <span id="statIn">0</span></div>
+  <div class="stat-item checked-out">Checked Out: <span id="statOut">0</span></div>
+  <div class="stat-item" id="statTbcWrap" style="display:none;">Needs Attention: <span id="statTbc" style="color:var(--amber);">0</span></div>
+</div>
+
+<div class="filter-bar">
+  <input type="text" id="searchInput" placeholder="Search items, serials, notes..." oninput="render()">
+  <select id="filterCategory" onchange="render()">
+    <option value="">All Categories</option>
+    <option value="Microphone">Microphone</option>
+    <option value="Wireless">Wireless</option>
+    <option value="Cable">Cable</option>
+    <option value="Mixer">Mixer</option>
+    <option value="Comms">Comms</option>
+    <option value="Headphones">Headphones</option>
+    <option value="Accessory">Accessory</option>
+    <option value="PSU">PSU</option>
+    <option value="Monitor">Monitor</option>
+    <option value="Recorder">Recorder</option>
+    <option value="Other">Other</option>
+  </select>
+  <select id="filterStatus" onchange="render()">
+    <option value="">All Status</option>
+    <option value="in">In Store</option>
+    <option value="out">Checked Out</option>
+  </select>
+  <select id="filterOwner" onchange="render()">
+    <option value="">All Owners</option>
+    <option value="Supercoms">Supercoms</option>
+    <option value="DAZN">DAZN</option>
+    <option value="Terry Tew">Terry Tew</option>
+  </select>
+  <span class="filter-count" id="filterCount"></span>
+</div>
+
+<div class="table-wrap">
+  <table id="inventoryTable">
+    <thead>
+      <tr>
+        <th>QR</th>
+        <th>Item</th>
+        <th>Serial Number</th>
+        <th>Category</th>
+        <th>Status</th>
+        <th>Last Action</th>
+        <th>Notes</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody id="inventoryBody"></tbody>
+  </table>
+  <div class="empty-state" id="emptyState">
+    <h3>No gear yet</h3>
+    <p>Add your first item or import a CSV to get started.</p>
+    <button class="primary" onclick="openAddModal()">+ Add First Item</button>
+  </div>
+</div>
+
+<!-- Scanner Overlay -->
+<div class="scanner-overlay" id="scannerOverlay">
+  <div class="scanner-viewport">
+    <video id="scannerVideo" playsinline></video>
+    <div class="scan-line"></div>
+  </div>
+  <div class="scanner-status" id="scannerStatus">Initialising camera...</div>
+  <button class="danger" onclick="closeScanner()">Close Scanner</button>
+</div>
+
+<!-- Add/Edit Modal -->
+<div class="modal-overlay" id="addModal">
+  <div class="modal">
+    <h3 id="modalTitle">Add New Item</h3>
+    <div class="form-group">
+      <label>Item Name</label>
+      <input type="text" id="fName" placeholder="e.g. Sennheiser MKH 416">
+    </div>
+    <div class="form-group">
+      <label>Serial Number</label>
+      <input type="text" id="fSerial" placeholder="e.g. SN-2024-00145">
+    </div>
+    <div class="form-group">
+      <label>Category</label>
+      <select id="fCategory">
+        <option value="Microphone">Microphone</option>
+        <option value="Wireless">Wireless</option>
+        <option value="Cable">Cable</option>
+        <option value="Mixer">Mixer</option>
+        <option value="Recorder">Recorder</option>
+        <option value="Monitor">Monitor</option>
+        <option value="Headphones">Headphones</option>
+        <option value="Comms">Comms</option>
+        <option value="PSU">PSU</option>
+        <option value="Accessory">Accessory</option>
+        <option value="Other">Other</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Notes</label>
+      <textarea id="fNotes" placeholder="Optional notes..."></textarea>
+    </div>
+    <input type="hidden" id="fEditId">
+    <div class="modal-actions">
+      <button onclick="closeAddModal()">Cancel</button>
+      <button class="primary" onclick="saveItem()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Print QR Modal -->
+<div class="modal-overlay" id="printModal">
+  <div class="modal" style="max-width:700px;">
+    <h3>Print QR Labels</h3>
+    <p style="font-size:12px;color:var(--text-dim);margin-bottom:16px;">
+      Select items to print. Labels will open in a new window for printing.
+    </p>
+    <div style="margin-bottom:12px;">
+      <button onclick="selectAllPrint(true)" style="font-size:11px;">Select All</button>
+      <button onclick="selectAllPrint(false)" style="font-size:11px;">Deselect All</button>
+    </div>
+    <div class="print-grid" id="printGrid"></div>
+    <div class="modal-actions">
+      <button onclick="closePrintModal()">Cancel</button>
+      <button class="primary" onclick="printSelectedLabels()">Print Selected</button>
+    </div>
+  </div>
+</div>
+
+<!-- Import Modal -->
+<div class="modal-overlay" id="importModal">
+  <div class="modal">
+    <h3>Import CSV</h3>
+    <p style="font-size:12px;color:var(--text-dim);margin-bottom:16px;">
+      CSV should have columns: Name, Serial, Category, Notes (in that order). First row is treated as header.
+    </p>
+    <div class="form-group">
+      <label>CSV File</label>
+      <input type="file" id="csvFileInput" accept=".csv" style="padding:8px;">
+    </div>
+    <div class="modal-actions">
+      <button onclick="closeImportModal()">Cancel</button>
+      <button class="primary" onclick="importCSV()">Import</button>
+    </div>
+  </div>
+</div>
+
+<!-- QR Detail Modal -->
+<div class="modal-overlay" id="qrDetailModal">
+  <div class="modal" style="text-align:center;">
+    <h3 id="qrDetailTitle">Item QR Code</h3>
+    <div id="qrDetailCode" style="display:inline-block;margin:16px 0;"></div>
+    <p style="font-family:var(--mono);font-size:11px;color:var(--text-dim);" id="qrDetailId"></p>
+    <div class="modal-actions" style="justify-content:center;">
+      <button onclick="closeQrDetail()">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Scan Result Modal -->
+<div class="modal-overlay" id="scanResultModal">
+  <div class="modal">
+    <h3 id="scanResultTitle">Item Found</h3>
+    <div id="scanResultContent"></div>
+    <div class="modal-actions" id="scanResultActions"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- Hidden div for generating QR codes offscreen -->
+<div id="qrFactory" style="position:absolute;left:-9999px;top:-9999px;"></div>
+
+<script>
+  // ── State ──
+  let inventory = JSON.parse(localStorage.getItem('soundkit_inventory') || '[]');
+  let scanStream = null;
+  let scanInterval = null;
+  let printSelections = {};
+
+  // ── Persistence ──
+  function save() {
+    localStorage.setItem('soundkit_inventory', JSON.stringify(inventory));
+  }
+
+  // ── IDs ──
+  function genId() {
+    return 'SK-' + Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).substring(2,6).toUpperCase();
+  }
+
+  // ── QR Generation ──
+  function generateQRDataURL(text, size) {
+    const factory = document.getElementById('qrFactory');
+    factory.innerHTML = '';
+    const tempDiv = document.createElement('div');
+    factory.appendChild(tempDiv);
+    new QRCode(tempDiv, {
+      text: text,
+      width: size || 128,
+      height: size || 128,
+      colorDark: '#000000',
+      colorLight: '#ffffff',
+      correctLevel: QRCode.CorrectLevel.M
+    });
+    const canvas = tempDiv.querySelector('canvas');
+    return canvas ? canvas.toDataURL('image/png') : '';
+  }
+
+  // ── Render ──
+  function getFilteredInventory() {
+    const search = (document.getElementById('searchInput')?.value || '').toLowerCase();
+    const cat = document.getElementById('filterCategory')?.value || '';
+    const status = document.getElementById('filterStatus')?.value || '';
+    const owner = document.getElementById('filterOwner')?.value || '';
+
+    return inventory.filter(item => {
+      if (cat && item.category !== cat) return false;
+      if (status && item.status !== status) return false;
+      if (owner && !(item.notes || '').includes('Owner: ' + owner)) return false;
+      if (search) {
+        const haystack = (item.name + ' ' + item.serial + ' ' + item.notes + ' ' + item.category + ' ' + item.id).toLowerCase();
+        if (!haystack.includes(search)) return false;
+      }
+      return true;
+    });
+  }
+
+  function render() {
+    const tbody = document.getElementById('inventoryBody');
+    const empty = document.getElementById('emptyState');
+    const filtered = getFilteredInventory();
+
+    const inCount = inventory.filter(i => i.status === 'in').length;
+    const outCount = inventory.filter(i => i.status === 'out').length;
+    document.getElementById('statTotal').textContent = inventory.length;
+    document.getElementById('statIn').textContent = inCount;
+    document.getElementById('statOut').textContent = outCount;
+    const tbcCount = inventory.filter(i => i.notes && i.notes.includes('⚠️')).length;
+    document.getElementById('statTbc').textContent = tbcCount;
+    document.getElementById('statTbcWrap').style.display = tbcCount > 0 ? '' : 'none';
+
+    if (inventory.length === 0) {
+      tbody.innerHTML = '';
+      empty.style.display = 'block';
+      document.getElementById('filterCount').textContent = '';
+      return;
+    }
+
+    empty.style.display = 'none';
+    const showingAll = filtered.length === inventory.length;
+    document.getElementById('filterCount').textContent = showingAll ? '' : `Showing ${filtered.length} of ${inventory.length}`;
+
+    tbody.innerHTML = filtered.map(item => {
+      const qrUrl = generateQRDataURL(item.id, 40);
+      const statusClass = item.status === 'in' ? 'status-in' : 'status-out';
+      const statusLabel = item.status === 'in' ? 'IN STORE' : 'CHECKED OUT';
+      const toggleLabel = item.status === 'in' ? 'Check Out' : 'Check In';
+      const ts = item.lastAction ? new Date(item.lastAction).toLocaleString('en-GB', {day:'2-digit',month:'short',year:'2-digit',hour:'2-digit',minute:'2-digit'}) : '—';
+      return `<tr id="row-${item.id}">
+        <td><img class="qr-thumb" src="${qrUrl}" onclick="showQrDetail('${item.id}')" title="Click to enlarge"></td>
+        <td class="item-name">${esc(item.name)}</td>
+        <td class="serial">${esc(item.serial)}</td>
+        <td><span class="category-tag">${esc(item.category)}</span></td>
+        <td><span class="status-badge ${statusClass}">${statusLabel}</span></td>
+        <td class="timestamp">${ts}</td>
+        <td class="notes-cell" title="${esc(item.notes || '')}">${esc(item.notes || '—')}</td>
+        <td><div class="actions-cell">
+          <button onclick="toggleStatus('${item.id}')">${toggleLabel}</button>
+          <button onclick="editItem('${item.id}')">Edit</button>
+          <button class="danger" onclick="deleteItem('${item.id}')">Del</button>
+        </div></td>
+      </tr>`;
+    }).join('');
+  }
+
+  function esc(s) {
+    const d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+  }
+
+  // ── CRUD ──
+  function openAddModal(editId) {
+    document.getElementById('addModal').classList.add('active');
+    if (!editId) {
+      document.getElementById('modalTitle').textContent = 'Add New Item';
+      document.getElementById('fName').value = '';
+      document.getElementById('fSerial').value = '';
+      document.getElementById('fCategory').value = 'Microphone';
+      document.getElementById('fNotes').value = '';
+      document.getElementById('fEditId').value = '';
+    }
+    document.getElementById('fName').focus();
+  }
+
+  function closeAddModal() {
+    document.getElementById('addModal').classList.remove('active');
+  }
+
+  function saveItem() {
+    const name = document.getElementById('fName').value.trim();
+    const serial = document.getElementById('fSerial').value.trim();
+    const category = document.getElementById('fCategory').value;
+    const notes = document.getElementById('fNotes').value.trim();
+    const editId = document.getElementById('fEditId').value;
+
+    if (!name || !serial) {
+      toast('Name and serial are required', true);
+      return;
+    }
+
+    if (editId) {
+      const item = inventory.find(i => i.id === editId);
+      if (item) {
+        item.name = name;
+        item.serial = serial;
+        item.category = category;
+        item.notes = notes;
+      }
+    } else {
+      inventory.push({
+        id: genId(),
+        name,
+        serial,
+        category,
+        notes,
+        status: 'in',
+        lastAction: null,
+        history: []
+      });
+    }
+
+    save();
+    render();
+    closeAddModal();
+    toast(editId ? 'Item updated' : 'Item added');
+  }
+
+  function editItem(id) {
+    const item = inventory.find(i => i.id === id);
+    if (!item) return;
+    document.getElementById('modalTitle').textContent = 'Edit Item';
+    document.getElementById('fName').value = item.name;
+    document.getElementById('fSerial').value = item.serial;
+    document.getElementById('fCategory').value = item.category;
+    document.getElementById('fNotes').value = item.notes || '';
+    document.getElementById('fEditId').value = id;
+    document.getElementById('addModal').classList.add('active');
+  }
+
+  function deleteItem(id) {
+    if (!confirm('Delete this item?')) return;
+    inventory = inventory.filter(i => i.id !== id);
+    save();
+    render();
+    toast('Item deleted');
+  }
+
+  function toggleStatus(id) {
+    const item = inventory.find(i => i.id === id);
+    if (!item) return;
+    const newStatus = item.status === 'in' ? 'out' : 'in';
+    item.history.push({ from: item.status, to: newStatus, at: new Date().toISOString() });
+    item.status = newStatus;
+    item.lastAction = new Date().toISOString();
+    save();
+    render();
+    toast(newStatus === 'out' ? `${item.name} checked OUT` : `${item.name} checked IN`);
+    // Flash the row
+    const row = document.getElementById('row-' + id);
+    if (row) {
+      row.classList.add('just-scanned');
+      setTimeout(() => row.classList.remove('just-scanned'), 1500);
+    }
+  }
+
+  // ── QR Scanner ──
+  function openScanner() {
+    const overlay = document.getElementById('scannerOverlay');
+    overlay.classList.add('active');
+    const video = document.getElementById('scannerVideo');
+    const status = document.getElementById('scannerStatus');
+
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+      .then(stream => {
+        scanStream = stream;
+        video.srcObject = stream;
+        video.play();
+        status.textContent = 'Scanning... point at a QR code';
+        startScanning(video);
+      })
+      .catch(err => {
+        status.textContent = 'Camera error: ' + err.message;
+        // Fallback: manual entry
+        setTimeout(() => {
+          const code = prompt('Camera unavailable. Enter QR code / Item ID manually:');
+          if (code) handleScan(code.trim());
+          closeScanner();
+        }, 1000);
+      });
+  }
+
+  function startScanning(video) {
+    // Use BarcodeDetector if available, otherwise fall back to manual
+    if ('BarcodeDetector' in window) {
+      const detector = new BarcodeDetector({ formats: ['qr_code'] });
+      scanInterval = setInterval(async () => {
+        try {
+          const barcodes = await detector.detect(video);
+          if (barcodes.length > 0) {
+            const val = barcodes[0].rawValue;
+            clearInterval(scanInterval);
+            closeScanner();
+            handleScan(val);
+          }
+        } catch(e) {}
+      }, 300);
+    } else {
+      document.getElementById('scannerStatus').textContent =
+        'QR detection not supported in this browser. Use Chrome on Android, or enter ID manually.';
+      // Add manual fallback button
+      setTimeout(() => {
+        const code = prompt('Enter QR code / Item ID manually:');
+        if (code) handleScan(code.trim());
+        closeScanner();
+      }, 2000);
+    }
+  }
+
+  function closeScanner() {
+    if (scanInterval) clearInterval(scanInterval);
+    if (scanStream) {
+      scanStream.getTracks().forEach(t => t.stop());
+      scanStream = null;
+    }
+    document.getElementById('scannerOverlay').classList.remove('active');
+  }
+
+  function handleScan(value) {
+    const item = inventory.find(i => i.id === value);
+    if (!item) {
+      toast('Item not found: ' + value, true);
+      return;
+    }
+
+    // Show scan result modal
+    const modal = document.getElementById('scanResultModal');
+    const statusLabel = item.status === 'in' ? 'IN STORE' : 'CHECKED OUT';
+    const statusClass = item.status === 'in' ? 'status-in' : 'status-out';
+    const action = item.status === 'in' ? 'Check Out' : 'Check In';
+
+    document.getElementById('scanResultTitle').textContent = item.name;
+    document.getElementById('scanResultContent').innerHTML = `
+      <div style="margin:16px 0;">
+        <p style="margin-bottom:8px;"><strong>Serial:</strong> <span class="serial">${esc(item.serial)}</span></p>
+        <p style="margin-bottom:8px;"><strong>Category:</strong> <span class="category-tag">${esc(item.category)}</span></p>
+        <p style="margin-bottom:8px;"><strong>Status:</strong> <span class="status-badge ${statusClass}">${statusLabel}</span></p>
+        ${item.notes ? `<p style="margin-bottom:8px;"><strong>Notes:</strong> ${esc(item.notes)}</p>` : ''}
+      </div>
+    `;
+    document.getElementById('scanResultActions').innerHTML = `
+      <button onclick="closeScanResult()">Cancel</button>
+      <button class="primary" onclick="toggleStatus('${item.id}');closeScanResult();">${action}</button>
+    `;
+    modal.classList.add('active');
+  }
+
+  function closeScanResult() {
+    document.getElementById('scanResultModal').classList.remove('active');
+  }
+
+  // ── QR Detail ──
+  function showQrDetail(id) {
+    const item = inventory.find(i => i.id === id);
+    if (!item) return;
+    document.getElementById('qrDetailTitle').textContent = item.name;
+    document.getElementById('qrDetailId').textContent = item.id;
+    const container = document.getElementById('qrDetailCode');
+    container.innerHTML = '';
+    new QRCode(container, {
+      text: item.id,
+      width: 200,
+      height: 200,
+      colorDark: '#000000',
+      colorLight: '#ffffff',
+      correctLevel: QRCode.CorrectLevel.M
+    });
+    document.getElementById('qrDetailModal').classList.add('active');
+  }
+
+  function closeQrDetail() {
+    document.getElementById('qrDetailModal').classList.remove('active');
+  }
+
+  // ── Print QR Labels ──
+  function openPrintModal() {
+    if (inventory.length === 0) {
+      toast('No items to print', true);
+      return;
+    }
+    const grid = document.getElementById('printGrid');
+    printSelections = {};
+    inventory.forEach(item => { printSelections[item.id] = true; });
+
+    grid.innerHTML = inventory.map(item => {
+      const qrUrl = generateQRDataURL(item.id, 100);
+      return `<div class="print-card" id="pc-${item.id}" onclick="togglePrintSelect('${item.id}')" style="cursor:pointer;outline:2px solid var(--accent);">
+        <img src="${qrUrl}" width="100" height="100">
+        <div class="pc-name">${esc(item.name)}</div>
+        <div class="pc-serial">${esc(item.serial)}</div>
+      </div>`;
+    }).join('');
+
+    document.getElementById('printModal').classList.add('active');
+  }
+
+  function closePrintModal() {
+    document.getElementById('printModal').classList.remove('active');
+  }
+
+  function togglePrintSelect(id) {
+    printSelections[id] = !printSelections[id];
+    const card = document.getElementById('pc-' + id);
+    card.style.outline = printSelections[id] ? '2px solid var(--accent)' : '2px solid transparent';
+    card.style.opacity = printSelections[id] ? '1' : '0.4';
+  }
+
+  function selectAllPrint(val) {
+    inventory.forEach(item => {
+      printSelections[item.id] = val;
+      const card = document.getElementById('pc-' + item.id);
+      if (card) {
+        card.style.outline = val ? '2px solid var(--accent)' : '2px solid transparent';
+        card.style.opacity = val ? '1' : '0.4';
+      }
+    });
+  }
+
+  function printSelectedLabels() {
+    const selected = inventory.filter(i => printSelections[i.id]);
+    if (selected.length === 0) {
+      toast('No items selected', true);
+      return;
+    }
+
+    const printWin = window.open('', '_blank');
+    printWin.document.write(`<!DOCTYPE html><html><head><title>QR Labels - Sound Kit</title>
+    <style>
+      body { font-family: Arial, sans-serif; margin: 20px; }
+      .label-grid { display: flex; flex-wrap: wrap; gap: 12px; }
+      .label { border: 1px dashed #ccc; padding: 16px; text-align: center; width: 200px; page-break-inside: avoid; }
+      .label img { display: block; margin: 0 auto 8px; }
+      .label .name { font-weight: bold; font-size: 12px; margin-bottom: 2px; }
+      .label .serial { font-size: 10px; color: #666; font-family: monospace; }
+      .label .lid { font-size: 8px; color: #999; font-family: monospace; margin-top: 4px; }
+      @media print { body { margin: 10px; } .label { border: 1px dashed #aaa; } }
+    </style></head><body>
+    <div class="label-grid">`);
+
+    selected.forEach(item => {
+      const qrUrl = generateQRDataURL(item.id, 150);
+      printWin.document.write(`<div class="label">
+        <img src="${qrUrl}" width="150" height="150">
+        <div class="name">${esc(item.name)}</div>
+        <div class="serial">${esc(item.serial)}</div>
+        <div class="lid">${item.id}</div>
+      </div>`);
+    });
+
+    printWin.document.write(`</div>
+    <script>setTimeout(function(){ window.print(); }, 500);<\/script>
+    </body></html>`);
+    printWin.document.close();
+    closePrintModal();
+  }
+
+  // ── CSV Export ──
+  function exportCSV() {
+    if (inventory.length === 0) {
+      toast('Nothing to export', true);
+      return;
+    }
+    const rows = [['ID', 'Name', 'Serial', 'Category', 'Status', 'Last Action', 'Notes']];
+    inventory.forEach(item => {
+      rows.push([
+        item.id,
+        item.name,
+        item.serial,
+        item.category,
+        item.status === 'in' ? 'IN' : 'OUT',
+        item.lastAction || '',
+        item.notes || ''
+      ]);
+    });
+
+    const csv = rows.map(r => r.map(c => '"' + String(c).replace(/"/g, '""') + '"').join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'sound-kit-inventory-' + new Date().toISOString().slice(0,10) + '.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+    toast('CSV exported');
+  }
+
+  // ── CSV Import ──
+  function openImportModal() {
+    document.getElementById('importModal').classList.add('active');
+  }
+
+  function closeImportModal() {
+    document.getElementById('importModal').classList.remove('active');
+  }
+
+  function importCSV() {
+    const fileInput = document.getElementById('csvFileInput');
+    const file = fileInput.files[0];
+    if (!file) {
+      toast('Select a CSV file', true);
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      const text = e.target.result;
+      const lines = text.split('\n').map(l => l.trim()).filter(l => l);
+      if (lines.length < 2) {
+        toast('CSV appears empty', true);
+        return;
+      }
+
+      // Skip header row
+      let imported = 0;
+      for (let i = 1; i < lines.length; i++) {
+        const cols = parseCSVLine(lines[i]);
+        if (cols.length >= 2) {
+          inventory.push({
+            id: genId(),
+            name: cols[0] || 'Unknown',
+            serial: cols[1] || 'N/A',
+            category: cols[2] || 'Other',
+            notes: cols[3] || '',
+            status: 'in',
+            lastAction: null,
+            history: []
+          });
+          imported++;
+        }
+      }
+      save();
+      render();
+      closeImportModal();
+      toast(`Imported ${imported} items`);
+    };
+    reader.readAsText(file);
+  }
+
+  function parseCSVLine(line) {
+    const result = [];
+    let current = '';
+    let inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (inQuotes) {
+        if (ch === '"' && line[i+1] === '"') { current += '"'; i++; }
+        else if (ch === '"') { inQuotes = false; }
+        else { current += ch; }
+      } else {
+        if (ch === '"') { inQuotes = true; }
+        else if (ch === ',') { result.push(current.trim()); current = ''; }
+        else { current += ch; }
+      }
+    }
+    result.push(current.trim());
+    return result;
+  }
+
+  // ── Toast ──
+  function toast(msg, isError) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className = 'toast show' + (isError ? ' error' : '');
+    setTimeout(() => { t.className = 'toast'; }, 2500);
+  }
+
+  // ── Reset ──
+  function resetData() {
+    if (!confirm('This will DELETE all inventory data and reload the seed kit list. Are you sure?')) return;
+    localStorage.removeItem('soundkit_inventory');
+    inventory = [];
+    seedIfEmpty();
+    render();
+    toast('Data reset to seed kit list');
+  }
+
+  // ── Seed Data (Ring 4 Saudi Kit) ──
+  function seedIfEmpty() {
+    if (inventory.length > 0) return;
+    const seedItems = [
+      {name:"Sennheiser 418",serial:"33",category:"Microphone",notes:"Use: Main FX | Owner: Supercoms | Value: £300"},
+      {name:"Sennheiser 416",serial:"34",category:"Microphone",notes:"Use: Red Corner | Owner: Supercoms | Value: £300"},
+      {name:"Sennheiser 416",serial:"35",category:"Microphone",notes:"Use: Blue Corner | Owner: Supercoms | Value: £300"},
+      {name:"Sennheiser (TBC)",serial:"TBC-04",category:"Microphone",notes:"Value: £300 | ⚠️ Model/serial missing from Numbers import"},
+      {name:"Sennheiser (TBC)",serial:"TBC-05",category:"Microphone",notes:"Value: £300 | ⚠️ Model/serial missing from Numbers import"},
+      {name:"Sennheiser (TBC)",serial:"TBC-06",category:"Microphone",notes:"Value: £300 | ⚠️ Model/serial missing from Numbers import"},
+      {name:"Sennheiser (TBC)",serial:"TBC-07",category:"Microphone",notes:"Value: £300 | ⚠️ Model/serial missing from Numbers import"},
+      {name:"Sennheiser (TBC)",serial:"TBC-08",category:"Microphone",notes:"Value: £300 | ⚠️ Model/serial missing from Numbers import"},
+      {name:"Sennheiser (TBC)",serial:"TBC-09",category:"Microphone",notes:"Value: £300 | ⚠️ Model/serial missing from Numbers import"},
+      {name:"Sennheiser (TBC)",serial:"TBC-10",category:"Microphone",notes:"Value: £300 | ⚠️ Model/serial missing from Numbers import"},
+      {name:"Sennheiser (TBC)",serial:"TBC-11",category:"Microphone",notes:"⚠️ Model/serial missing from Numbers import"},
+      {name:"Sennheiser (TBC)",serial:"TBC-12",category:"Microphone",notes:"⚠️ Model/serial missing from Numbers import"},
+      {name:"Sennheiser (TBC)",serial:"TBC-13",category:"Microphone",notes:"⚠️ Model/serial missing from Numbers import"},
+      {name:"Sennheiser (TBC)",serial:"TBC-14",category:"Microphone",notes:"⚠️ Model/serial missing from Numbers import"},
+      {name:"Sennheiser 8070 Mic",serial:"31",category:"Microphone",notes:"Use: Cam 3 | Owner: Supercoms | Value: £300"},
+      {name:"Sennheiser 8070 Mic",serial:"32",category:"Microphone",notes:"Use: Cam 4 | Owner: Supercoms | Value: £300"},
+      {name:"Fel Mic Booster",serial:"8",category:"Accessory",notes:"Owner: Supercoms | Value: £80"},
+      {name:"Fel Mic Booster",serial:"9",category:"Accessory",notes:"Owner: Supercoms | Value: £80"},
+      {name:"Fel Mic Booster",serial:"10",category:"Accessory",notes:"Owner: Supercoms | Value: £80"},
+      {name:"Fel Mic Booster",serial:"11",category:"Accessory",notes:"Owner: Supercoms | Value: £80"},
+      {name:"XLR x 12",serial:"N/A",category:"Cable",notes:"Owner: Supercoms | Value: £5"},
+      {name:"Sennheiser Handheld 835",serial:"HH-1",category:"Microphone",notes:"Owner: Supercoms | Value: £70"},
+      {name:"Sennheiser Handheld 835",serial:"HH-2",category:"Microphone",notes:"Owner: Supercoms | Value: £70"},
+      {name:"Sennheiser Handheld 835",serial:"HH-3",category:"Microphone",notes:"Owner: Supercoms | Value: £70"},
+      {name:"Sennheiser Handheld 835",serial:"HH-4",category:"Microphone",notes:"Owner: Supercoms | Value: £70"},
+      {name:"Sennheiser Handheld 835",serial:"HH-5",category:"Microphone",notes:"Owner: Supercoms | Value: £70"},
+      {name:"Sennheiser Handheld 835",serial:"HH-6",category:"Microphone",notes:"Owner: Supercoms | Value: £70"},
+      {name:"Shure IEM 215",serial:"IEM-01",category:"Headphones",notes:"Owner: Supercoms | Value: £60"},
+      {name:"Shure IEM 215",serial:"IEM-02",category:"Headphones",notes:"Owner: Supercoms | Value: £60"},
+      {name:"Shure IEM 215",serial:"IEM-03",category:"Headphones",notes:"Owner: Supercoms | Value: £60"},
+      {name:"Shure IEM 215",serial:"IEM-04",category:"Headphones",notes:"Owner: Supercoms | Value: £60"},
+      {name:"Shure IEM 215",serial:"IEM-05",category:"Headphones",notes:"Owner: Supercoms | Value: £60"},
+      {name:"Shure IEM 215",serial:"IEM-06",category:"Headphones",notes:"Owner: Supercoms | Value: £60"},
+      {name:"Shure IEM 215",serial:"IEM-07",category:"Headphones",notes:"Owner: Supercoms | Value: £60"},
+      {name:"Shure IEM 215",serial:"IEM-08",category:"Headphones",notes:"Value: £60"},
+      {name:"Shure IEM 215",serial:"IEM-09",category:"Headphones",notes:"Value: £60"},
+      {name:"Dante MADI Converter",serial:"N/A",category:"Comms",notes:"Owner: DAZN | Value: £800"},
+      {name:"DANTE COMS Box 1",serial:"21",category:"Comms",notes:"Owner: Supercoms | Value: £400"},
+      {name:"DANTE COMS Box 2",serial:"22",category:"Comms",notes:"Owner: Supercoms | Value: £400"},
+      {name:"DANTE COMS Box 3",serial:"23",category:"Comms",notes:"Owner: Supercoms | Value: £400"},
+      {name:"DANTE COMS Box 4",serial:"24",category:"Comms",notes:"Owner: Supercoms | Value: £400"},
+      {name:"302 Mixer",serial:"29",category:"Mixer",notes:"Owner: Supercoms | Value: £200"},
+      {name:"RIEDEL",serial:"RIEDEL-43",category:"Comms",notes:"Owner: Terry Tew | Value: £150"},
+      {name:"RIEDEL",serial:"RIEDEL-44",category:"Comms",notes:"Owner: Terry Tew | Value: £150"},
+      {name:"RIEDEL",serial:"RIEDEL-45",category:"Comms",notes:"Owner: Terry Tew | Value: £150"},
+      {name:"RIEDEL",serial:"RIEDEL-46",category:"Comms",notes:"Owner: Terry Tew | Value: £150"},
+      {name:"Behringer Mic Splitter",serial:"N/A",category:"Accessory",notes:"Owner: DAZN | Value: £50"},
+      {name:"Riedel Comms Matrix",serial:"10017",category:"Comms",notes:"Owner: Supercoms | Value: £750"},
+      {name:"Shure Axient ADX5D",serial:"ADX5D-01",category:"Wireless",notes:"Value: £500"},
+      {name:"Shure Axient ADX5D",serial:"ADX5D-02",category:"Wireless",notes:"Value: £500"},
+      {name:"Shure Axient ADX5D",serial:"ADX5D-03",category:"Wireless",notes:"Value: £500"},
+      {name:"Shure Axient ADX5D",serial:"ADX5D-04",category:"Wireless",notes:"Value: £500"},
+      {name:"Shure Axient ADX5D",serial:"ADX5D-05",category:"Wireless",notes:"Value: £500"},
+      {name:"Riedel Panel",serial:"10001",category:"Comms",notes:"Owner: Supercoms | Value: £150"},
+      {name:"Riedel Panel",serial:"10002",category:"Comms",notes:"Owner: Supercoms | Value: £150"},
+      {name:"Riedel Panel",serial:"10003",category:"Comms",notes:"Owner: Supercoms | Value: £150"},
+      {name:"Riedel Panel",serial:"10004",category:"Comms",notes:"Owner: Supercoms | Value: £150"},
+      {name:"Riedel Panel",serial:"10005",category:"Comms",notes:"Owner: Supercoms | Value: £150"},
+      {name:"Riedel Panel",serial:"10006",category:"Comms",notes:"Owner: Supercoms | Value: £150"},
+      {name:"Riedel Panel",serial:"10007",category:"Comms",notes:"Owner: Supercoms | Value: £150"},
+      {name:"Riedel Panel",serial:"10008",category:"Comms",notes:"Owner: Supercoms | Value: £150"},
+      {name:"Riedel Panel",serial:"10009",category:"Comms",notes:"Owner: Supercoms | Value: £150"},
+      {name:"Riedel Panel",serial:"10010",category:"Comms",notes:"Owner: Supercoms | Value: £150"},
+      {name:"Riedel Panel",serial:"10011",category:"Comms",notes:"Owner: Supercoms | Value: £150"},
+      {name:"Riedel Panel",serial:"10012",category:"Comms",notes:"Owner: Supercoms | Value: £150"},
+      {name:"Riedel Panel",serial:"10013",category:"Comms",notes:"Owner: Supercoms | Value: £150"},
+      {name:"Riedel Panel",serial:"10014",category:"Comms",notes:"Owner: Supercoms | Value: £150"},
+      {name:"Riedel Panel",serial:"10015",category:"Comms",notes:"Owner: Supercoms | Value: £150"}
+    ];
+    seedItems.forEach(s => {
+      inventory.push({
+        id: genId(),
+        name: s.name,
+        serial: s.serial,
+        category: s.category,
+        notes: s.notes,
+        status: 'in',
+        lastAction: null,
+        history: []
+      });
+    });
+    save();
+  }
+
+  // ── Init ──
+  seedIfEmpty();
+  render();
+</script>
+</body>
+</html>
