@@ -834,7 +834,8 @@
       notes: row.notes || '',
       status: row.status || 'in',
       lastAction: row.last_action,
-      history: row.history || []
+      history: row.history || [],
+      createdAt: row.created_at
     };
   }
 
@@ -876,6 +877,7 @@
       const { data, error } = await supa.from('items').select('*').order('created_at', { ascending: true });
       if (error) throw error;
       inventory = (data || []).map(rowToItem);
+      sortInventory();
       saveCache();
       isOnline = true;
       setSyncStatus('synced', 'Synced');
@@ -890,6 +892,15 @@
   }
 
   // Realtime subscription — other devices' changes stream in here
+  // Sort inventory by creation time so order is stable across devices
+  function sortInventory() {
+    inventory.sort((a, b) => {
+      const aTime = a.createdAt || a.id;
+      const bTime = b.createdAt || b.id;
+      return aTime < bTime ? -1 : aTime > bTime ? 1 : 0;
+    });
+  }
+
   function dbSubscribe() {
     supa.channel('items-changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'items' }, (payload) => {
@@ -897,8 +908,12 @@
         if (evt === 'INSERT' || evt === 'UPDATE') {
           const newItem = rowToItem(payload.new);
           const idx = inventory.findIndex(i => i.id === newItem.id);
-          if (idx >= 0) inventory[idx] = newItem;
-          else inventory.push(newItem);
+          if (idx >= 0) {
+            inventory[idx] = newItem;
+          } else {
+            inventory.push(newItem);
+            sortInventory();
+          }
         } else if (evt === 'DELETE') {
           inventory = inventory.filter(i => i.id !== payload.old.id);
         }
