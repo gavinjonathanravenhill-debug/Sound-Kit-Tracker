@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Sound Kit Tracker</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap');
 
@@ -628,7 +629,7 @@
 <!-- Scanner Overlay -->
 <div class="scanner-overlay" id="scannerOverlay">
   <div class="scanner-viewport">
-    <video id="scannerVideo" playsinline></video>
+    <video id="scannerVideo" playsinline autoplay muted></video>
     <div class="scan-line"></div>
   </div>
   <div class="scanner-status" id="scannerStatus">Initialising camera...</div>
@@ -957,7 +958,7 @@
         scanStream = stream;
         video.srcObject = stream;
         video.play();
-        status.textContent = 'Scanning... point at a QR code';
+        status.textContent = 'Scanning... hold steady over QR code';
         startScanning(video);
       })
       .catch(err => {
@@ -972,34 +973,60 @@
   }
 
   function startScanning(video) {
-    // Use BarcodeDetector if available, otherwise fall back to manual
-    if ('BarcodeDetector' in window) {
-      const detector = new BarcodeDetector({ formats: ['qr_code'] });
-      scanInterval = setInterval(async () => {
-        try {
-          const barcodes = await detector.detect(video);
-          if (barcodes.length > 0) {
-            const val = barcodes[0].rawValue;
-            clearInterval(scanInterval);
+    // Prefer jsQR (works on all iOS Safari versions). Fall back to BarcodeDetector
+    // only if jsQR isn't loaded for some reason.
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+
+    const tick = () => {
+      if (!scanStream) return; // scanner closed
+      if (video.readyState !== video.HAVE_ENOUGH_DATA) {
+        scanInterval = requestAnimationFrame(tick);
+        return;
+      }
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      try {
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        if (typeof jsQR === 'function') {
+          const code = jsQR(imageData.data, imageData.width, imageData.height, {
+            inversionAttempts: 'dontInvert'
+          });
+          if (code && code.data) {
+            cancelAnimationFrame(scanInterval);
+            scanInterval = null;
             closeScanner();
-            handleScan(val);
+            handleScan(code.data);
+            return;
           }
-        } catch(e) {}
-      }, 300);
-    } else {
+        }
+      } catch (e) { /* keep scanning */ }
+
+      scanInterval = requestAnimationFrame(tick);
+    };
+
+    if (typeof jsQR !== 'function') {
       document.getElementById('scannerStatus').textContent =
-        'QR detection not supported in this browser. Use Chrome on Android, or enter ID manually.';
-      // Add manual fallback button
+        'QR library failed to load. Check your internet connection.';
       setTimeout(() => {
         const code = prompt('Enter QR code / Item ID manually:');
         if (code) handleScan(code.trim());
         closeScanner();
-      }, 2000);
+      }, 1500);
+      return;
     }
+
+    scanInterval = requestAnimationFrame(tick);
   }
 
   function closeScanner() {
-    if (scanInterval) clearInterval(scanInterval);
+    if (scanInterval) {
+      cancelAnimationFrame(scanInterval);
+      clearInterval(scanInterval);
+      scanInterval = null;
+    }
     if (scanStream) {
       scanStream.getTracks().forEach(t => t.stop());
       scanStream = null;
