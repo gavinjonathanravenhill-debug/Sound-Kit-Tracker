@@ -596,7 +596,8 @@
     </div>
   </div>
   <div class="header-actions">
-    <button onclick="openScanner()">&#9655; Scan QR</button>
+    <button onclick="openScanner()">&#9655; Camera Scan</button>
+    <button onclick="openHwScanner()" title="For Eyoyo and other Bluetooth HID barcode scanners">⌨ HW Scanner</button>
     <button onclick="openAddModal()">+ Add Item</button>
     <button onclick="openPrintModal()">Print QR Labels</button>
     <button onclick="exportCSV()">Export CSV</button>
@@ -673,6 +674,29 @@
   </div>
   <div class="scanner-status" id="scannerStatus">Initialising camera...</div>
   <button class="danger" onclick="closeScanner()">Close Scanner</button>
+</div>
+
+<!-- Hardware Scanner (Eyoyo/Bluetooth HID) Overlay -->
+<div class="scanner-overlay" id="hwScannerOverlay">
+  <div style="text-align:center;max-width:480px;padding:0 24px;">
+    <h2 style="font-size:18px;margin-bottom:8px;color:var(--accent);">Hardware Scanner Ready</h2>
+    <p style="font-family:var(--mono);font-size:12px;color:var(--text-dim);margin-bottom:20px;line-height:1.6;">
+      Scan any item barcode. App will auto check in/out on scan.<br>
+      Keep this window focused while scanning.
+    </p>
+    <input type="text" id="hwScanInput" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+           style="width:100%;padding:16px;background:var(--bg);border:2px solid var(--accent);border-radius:8px;color:var(--accent);font-family:var(--mono);font-size:14px;text-align:center;outline:none;caret-color:var(--accent);">
+    <div id="hwScanFeedback" style="min-height:80px;margin-top:16px;padding:14px;background:var(--surface);border:1px solid var(--border);border-radius:8px;font-family:var(--mono);font-size:12px;text-align:left;">
+      <span style="color:var(--text-dim);">Waiting for scan...</span>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:center;margin-top:16px;flex-wrap:wrap;">
+      <label style="font-family:var(--mono);font-size:11px;color:var(--text-dim);display:flex;align-items:center;gap:6px;cursor:pointer;">
+        <input type="checkbox" id="hwAutoToggle" checked style="accent-color:var(--accent);">
+        Auto check in/out
+      </label>
+    </div>
+    <button class="danger" style="margin-top:16px;" onclick="closeHwScanner()">Close</button>
+  </div>
 </div>
 
 <!-- Add/Edit Modal -->
@@ -1224,6 +1248,113 @@
       scanStream = null;
     }
     document.getElementById('scannerOverlay').classList.remove('active');
+  }
+
+  // ── Hardware Scanner (Eyoyo / Bluetooth HID) ──
+  // Eyoyo scanners present as a Bluetooth HID keyboard. They "type" the
+  // decoded barcode content into the focused input and press Enter.
+  // We capture that via a focused text input and process on Enter.
+  let hwScanHistory = [];
+
+  function openHwScanner() {
+    const overlay = document.getElementById('hwScannerOverlay');
+    overlay.classList.add('active');
+    const input = document.getElementById('hwScanInput');
+    input.value = '';
+    // Focus with a slight delay so iOS Safari reliably picks it up
+    setTimeout(() => input.focus(), 100);
+
+    // Re-focus if user taps elsewhere accidentally
+    input.addEventListener('blur', () => {
+      if (document.getElementById('hwScannerOverlay').classList.contains('active')) {
+        setTimeout(() => input.focus(), 50);
+      }
+    });
+
+    // Process scan on Enter key
+    input.onkeydown = (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const scanned = input.value.trim();
+        input.value = '';
+        if (scanned) processHwScan(scanned);
+      }
+    };
+  }
+
+  function closeHwScanner() {
+    const overlay = document.getElementById('hwScannerOverlay');
+    overlay.classList.remove('active');
+    const input = document.getElementById('hwScanInput');
+    input.onkeydown = null;
+    input.blur();
+  }
+
+  async function processHwScan(scanned) {
+    const feedback = document.getElementById('hwScanFeedback');
+    const autoToggle = document.getElementById('hwAutoToggle').checked;
+
+    // Try to find item by exact ID match first, then fall back to serial match
+    let item = inventory.find(i => i.id === scanned);
+    if (!item) item = inventory.find(i => i.serial === scanned);
+
+    if (!item) {
+      feedback.innerHTML = `<div style="color:var(--red);">
+        <strong>✗ Not found:</strong> ${esc(scanned)}
+      </div>`;
+      // Beep via audio context (quick error tone)
+      playBeep(220, 0.15);
+      hwScanHistory.unshift({ time: Date.now(), result: 'not_found', value: scanned });
+      return;
+    }
+
+    // Found — display item info
+    const statusBefore = item.status === 'in' ? 'IN STORE' : 'CHECKED OUT';
+    const statusColor = item.status === 'in' ? 'var(--accent)' : 'var(--red)';
+
+    if (autoToggle) {
+      // Auto-toggle on scan
+      await toggleStatus(item.id);
+      const statusAfter = item.status === 'in' ? 'IN STORE' : 'CHECKED OUT';
+      const afterColor = item.status === 'in' ? 'var(--accent)' : 'var(--red)';
+      feedback.innerHTML = `<div style="color:var(--accent);margin-bottom:4px;">
+        <strong>✓ ${esc(item.name)}</strong>
+      </div>
+      <div style="color:var(--text-dim);font-size:11px;">
+        Serial: ${esc(item.serial)}<br>
+        Status: <span style="color:${afterColor};">${statusAfter}</span>
+        (was ${statusBefore})
+      </div>`;
+      playBeep(880, 0.08);
+      hwScanHistory.unshift({ time: Date.now(), result: 'toggled', item: item.name });
+    } else {
+      // Just show info, don't toggle
+      feedback.innerHTML = `<div style="color:var(--accent);margin-bottom:4px;">
+        <strong>✓ ${esc(item.name)}</strong>
+      </div>
+      <div style="color:var(--text-dim);font-size:11px;">
+        Serial: ${esc(item.serial)}<br>
+        Status: <span style="color:${statusColor};">${statusBefore}</span>
+      </div>`;
+      playBeep(660, 0.08);
+    }
+  }
+
+  // Simple beep using Web Audio API for scan confirmation sounds
+  function playBeep(freq, duration) {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.frequency.value = freq;
+      osc.type = 'sine';
+      gain.gain.setValueAtTime(0.15, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + duration);
+    } catch (e) { /* ignore audio errors */ }
   }
 
   function handleScan(value) {
