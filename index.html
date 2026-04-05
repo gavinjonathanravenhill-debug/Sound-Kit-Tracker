@@ -3,641 +3,1531 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Digging Deep — A Three-Year Basement Build</title>
-<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400&family=Source+Serif+4:ital,opsz,wght@0,8..60,300;0,8..60,400;0,8..60,600;1,8..60,400&family=DM+Mono:wght@300;400&display=swap" rel="stylesheet">
+<title>Sound Kit Tracker</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <style>
-:root {
-  --clay: #1a1714;
-  --earth: #2c2620;
-  --sand: #e8dcc8;
-  --cream: #f5f0e6;
-  --brick: #b84c33;
-  --mortar: #8a7e6e;
-  --steel: #4a5568;
-  --highlight: #d4763a;
-  --dim: #6b6256;
-  --rule: rgba(184,76,51,0.3);
-}
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap');
 
-* { margin: 0; padding: 0; box-sizing: border-box; }
-html { scroll-behavior: smooth; }
+  :root {
+    --bg: #0a0a0f;
+    --surface: #12121a;
+    --surface2: #1a1a26;
+    --border: #2a2a3a;
+    --border-active: #4a4a6a;
+    --text: #e8e8f0;
+    --text-dim: #8888a0;
+    --accent: #00ff88;
+    --accent-dim: #00ff8830;
+    --red: #ff4466;
+    --red-dim: #ff446630;
+    --amber: #ffaa00;
+    --amber-dim: #ffaa0030;
+    --blue: #4488ff;
+    --mono: 'JetBrains Mono', monospace;
+    --sans: 'Space Grotesk', sans-serif;
+  }
 
-body {
-  font-family: 'Source Serif 4', Georgia, serif;
-  background: var(--clay);
-  color: var(--sand);
-  line-height: 1.75;
-  font-size: 18px;
-  -webkit-font-smoothing: antialiased;
-}
+  * { margin: 0; padding: 0; box-sizing: border-box; }
 
-body::after {
-  content: '';
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 9999;
-  opacity: 0.025;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-}
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
 
-::-webkit-scrollbar { width: 8px; }
-::-webkit-scrollbar-track { background: var(--clay); }
-::-webkit-scrollbar-thumb { background: var(--mortar); border-radius: 4px; }
+  .app-header {
+    padding: 24px 32px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
 
-.hero {
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
-  padding: 60px 40px 80px;
-  position: relative;
-  overflow: hidden;
-  background: 
-    linear-gradient(180deg, rgba(26,23,20,0) 0%, rgba(26,23,20,0.6) 50%, var(--clay) 100%),
-    url('images/02_front_dig_wide.jpg') center 40% / cover no-repeat;
-}
+  .app-title {
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
 
-.hero-content { max-width: 900px; position: relative; z-index: 2; }
+  .app-title .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 12px var(--accent);
+    animation: pulse 2s infinite;
+  }
 
-.hero-tag {
-  font-family: 'DM Mono', monospace;
-  font-size: 12px;
-  letter-spacing: 4px;
-  text-transform: uppercase;
-  color: var(--brick);
-  margin-bottom: 24px;
-  opacity: 0;
-  animation: fadeUp 0.8s 0.3s forwards;
-}
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
 
-.hero h1 {
-  font-family: 'Playfair Display', serif;
-  font-weight: 900;
-  font-size: clamp(48px, 8vw, 96px);
-  line-height: 1.05;
-  letter-spacing: -2px;
-  color: var(--cream);
-  margin-bottom: 24px;
-  opacity: 0;
-  animation: fadeUp 0.8s 0.5s forwards;
-}
+  .header-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
 
-.hero h1 em { font-style: italic; color: var(--brick); }
+  button {
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 600;
+    padding: 8px 16px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--text);
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
 
-.hero-sub {
-  font-size: 20px;
-  color: var(--mortar);
-  max-width: 560px;
-  font-weight: 300;
-  opacity: 0;
-  animation: fadeUp 0.8s 0.7s forwards;
-}
+  button:hover {
+    border-color: var(--border-active);
+    background: var(--surface2);
+  }
 
-.scroll-hint {
-  position: absolute;
-  bottom: 30px;
-  left: 50%;
-  transform: translateX(-50%);
-  font-family: 'DM Mono', monospace;
-  font-size: 11px;
-  letter-spacing: 3px;
-  text-transform: uppercase;
-  color: var(--mortar);
-  opacity: 0;
-  animation: fadeUp 0.8s 1.2s forwards;
-}
+  button.primary {
+    background: var(--accent);
+    color: var(--bg);
+    border-color: var(--accent);
+  }
 
-.scroll-hint::after {
-  content: '';
-  display: block;
-  width: 1px;
-  height: 40px;
-  background: var(--brick);
-  margin: 12px auto 0;
-  animation: scrollPulse 2s infinite;
-}
+  button.primary:hover {
+    box-shadow: 0 0 20px var(--accent-dim);
+  }
 
-@keyframes scrollPulse {
-  0%, 100% { opacity: 0.3; transform: scaleY(0.6); }
-  50% { opacity: 1; transform: scaleY(1); }
-}
+  button.danger {
+    color: var(--red);
+    border-color: var(--red);
+  }
 
-@keyframes fadeUp {
-  from { opacity: 0; transform: translateY(30px); }
-  to { opacity: 1; transform: translateY(0); }
-}
+  button.danger:hover {
+    background: var(--red-dim);
+  }
 
-.nav {
-  position: fixed;
-  top: 0; left: 0; right: 0;
-  z-index: 100;
-  padding: 16px 40px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  background: rgba(26,23,20,0.85);
-  backdrop-filter: blur(12px);
-  border-bottom: 1px solid rgba(184,76,51,0.15);
-  transform: translateY(-100%);
-  transition: transform 0.4s ease;
-}
+  .stats-bar {
+    display: flex;
+    gap: 24px;
+    padding: 16px 32px;
+    border-bottom: 1px solid var(--border);
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text-dim);
+    flex-wrap: wrap;
+  }
 
-.nav.visible { transform: translateY(0); }
+  .stat-item span {
+    color: var(--text);
+    font-weight: 600;
+  }
 
-.nav-logo {
-  font-family: 'Playfair Display', serif;
-  font-weight: 700;
-  font-size: 18px;
-  color: var(--cream);
-  text-decoration: none;
-}
+  .stat-item.checked-out span { color: var(--red); }
+  .stat-item.checked-in span { color: var(--accent); }
 
-.nav-links { display: flex; gap: 28px; list-style: none; }
+  /* Scanner Overlay */
+  .scanner-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    background: rgba(0,0,0,0.95);
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 24px;
+  }
 
-.nav-links a {
-  font-family: 'DM Mono', monospace;
-  font-size: 11px;
-  letter-spacing: 2px;
-  text-transform: uppercase;
-  color: var(--mortar);
-  text-decoration: none;
-  transition: color 0.3s;
-}
+  .scanner-overlay.active { display: flex; }
 
-.nav-links a:hover { color: var(--brick); }
+  .scanner-viewport {
+    width: 320px;
+    height: 320px;
+    border: 2px solid var(--accent);
+    border-radius: 12px;
+    overflow: hidden;
+    position: relative;
+  }
 
-.content { max-width: 1100px; margin: 0 auto; padding: 0 40px; }
+  .scanner-viewport video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
 
-section {
-  padding: 100px 0;
-  opacity: 0;
-  transform: translateY(40px);
-  transition: all 0.8s cubic-bezier(0.16, 1, 0.3, 1);
-}
+  .scan-line {
+    position: absolute;
+    width: 100%;
+    height: 2px;
+    background: var(--accent);
+    box-shadow: 0 0 20px var(--accent);
+    animation: scanMove 2s linear infinite;
+  }
 
-section.in-view { opacity: 1; transform: translateY(0); }
+  @keyframes scanMove {
+    0% { top: 0; }
+    100% { top: 100%; }
+  }
 
-.section-number {
-  font-family: 'DM Mono', monospace;
-  font-size: 12px;
-  letter-spacing: 4px;
-  text-transform: uppercase;
-  color: var(--brick);
-  margin-bottom: 16px;
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
+  .scanner-status {
+    font-family: var(--mono);
+    font-size: 14px;
+    color: var(--accent);
+  }
 
-.section-number::after {
-  content: '';
-  flex: 1;
-  height: 1px;
-  background: var(--rule);
-  max-width: 200px;
-}
+  /* Modal */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 900;
+    background: rgba(0,0,0,0.8);
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
 
-h2 {
-  font-family: 'Playfair Display', serif;
-  font-weight: 900;
-  font-size: clamp(32px, 5vw, 56px);
-  line-height: 1.1;
-  letter-spacing: -1px;
-  color: var(--cream);
-  margin-bottom: 32px;
-}
+  .modal-overlay.active { display: flex; }
 
-h2 em { font-style: italic; color: var(--highlight); }
+  .modal {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 28px;
+    width: 100%;
+    max-width: 500px;
+  }
 
-.lead {
-  font-size: 22px;
-  font-weight: 300;
-  color: var(--sand);
-  margin-bottom: 40px;
-  max-width: 700px;
-}
+  .modal h3 {
+    font-size: 16px;
+    margin-bottom: 20px;
+    font-weight: 600;
+  }
 
-p { margin-bottom: 24px; color: var(--sand); max-width: 680px; font-weight: 300; }
-p strong { color: var(--cream); font-weight: 600; }
+  .form-group {
+    margin-bottom: 16px;
+  }
 
-.img-full {
-  width: 100%;
-  margin: 48px 0;
-  border-radius: 4px;
-  overflow: hidden;
-}
+  .form-group label {
+    display: block;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-bottom: 6px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
 
-.img-full img {
-  width: 100%;
-  display: block;
-  filter: saturate(0.85) contrast(1.05);
-  transition: transform 0.6s ease;
-}
+  .form-group input, .form-group textarea, .form-group select {
+    width: 100%;
+    padding: 10px 14px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 13px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
 
-.img-full:hover img { transform: scale(1.02); }
+  .form-group input:focus, .form-group textarea:focus {
+    border-color: var(--accent);
+  }
 
-.img-caption {
-  font-family: 'DM Mono', monospace;
-  font-size: 12px;
-  color: var(--dim);
-  margin-top: 12px;
-  letter-spacing: 0.5px;
-  line-height: 1.7;
-}
+  .form-group textarea {
+    resize: vertical;
+    min-height: 60px;
+  }
 
-.img-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
-  margin: 48px 0;
-}
+  .modal-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+    margin-top: 20px;
+  }
 
-.img-grid img {
-  width: 100%;
-  height: 360px;
-  object-fit: cover;
-  border-radius: 4px;
-  filter: saturate(0.85) contrast(1.05);
-  transition: transform 0.6s ease;
-}
+  .filter-bar {
+    display: flex;
+    gap: 10px;
+    padding: 12px 32px;
+    border-bottom: 1px solid var(--border);
+    flex-wrap: wrap;
+    align-items: center;
+  }
 
-.img-grid img:hover { transform: scale(1.03); }
+  .filter-bar input {
+    flex: 1;
+    min-width: 200px;
+    padding: 8px 14px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 12px;
+    outline: none;
+  }
 
-.stats {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: 1px;
-  background: var(--rule);
-  border: 1px solid var(--rule);
-  border-radius: 4px;
-  margin: 60px 0;
-  overflow: hidden;
-}
+  .filter-bar input:focus { border-color: var(--accent); }
 
-.stat {
-  background: var(--earth);
-  padding: 32px 24px;
-  text-align: center;
-}
+  .filter-bar select {
+    padding: 8px 12px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 12px;
+    outline: none;
+  }
 
-.stat-value {
-  font-family: 'Playfair Display', serif;
-  font-weight: 900;
-  font-size: 36px;
-  color: var(--brick);
-  line-height: 1;
-  margin-bottom: 8px;
-}
+  .filter-bar .filter-count {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-dim);
+  }
 
-.stat-label {
-  font-family: 'DM Mono', monospace;
-  font-size: 10px;
-  letter-spacing: 2px;
-  text-transform: uppercase;
-  color: var(--mortar);
-}
+  .owner-tag {
+    font-family: var(--mono);
+    font-size: 10px;
+    padding: 2px 6px;
+    border-radius: 3px;
+    background: #1a2a3a;
+    border: 1px solid #2a3a5a;
+    color: var(--blue);
+    margin-right: 4px;
+  }
 
-.pullquote {
-  border-left: 3px solid var(--brick);
-  padding: 8px 0 8px 32px;
-  margin: 48px 0;
-  max-width: 600px;
-}
+  /* Table */
+  .table-wrap {
+    overflow-x: auto;
+    padding: 0 16px 24px;
+  }
 
-.pullquote p {
-  font-family: 'Playfair Display', serif;
-  font-style: italic;
-  font-size: 26px;
-  line-height: 1.5;
-  color: var(--cream);
-  margin-bottom: 12px;
-}
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    min-width: 800px;
+  }
 
-.pullquote cite {
-  font-family: 'DM Mono', monospace;
-  font-size: 12px;
-  color: var(--dim);
-  font-style: normal;
-  letter-spacing: 1px;
-}
+  thead th {
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-dim);
+    padding: 14px 16px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    background: var(--bg);
+  }
 
-.timeline {
-  position: relative;
-  padding-left: 48px;
-  margin: 48px 0;
-}
+  tbody tr {
+    border-bottom: 1px solid var(--border);
+    transition: background 0.1s;
+  }
 
-.timeline::before {
-  content: '';
-  position: absolute;
-  left: 8px; top: 0; bottom: 0;
-  width: 1px;
-  background: var(--rule);
-}
+  tbody tr:hover {
+    background: var(--surface);
+  }
 
-.timeline-item {
-  position: relative;
-  margin-bottom: 40px;
-}
+  tbody tr.just-scanned {
+    animation: scanFlash 1.5s ease-out;
+  }
 
-.timeline-item::before {
-  content: '';
-  position: absolute;
-  left: -44px; top: 8px;
-  width: 12px; height: 12px;
-  border-radius: 50%;
-  border: 2px solid var(--brick);
-  background: var(--clay);
-}
+  @keyframes scanFlash {
+    0% { background: var(--accent-dim); }
+    100% { background: transparent; }
+  }
 
-.timeline-item h3 {
-  font-family: 'DM Mono', monospace;
-  font-size: 13px;
-  letter-spacing: 2px;
-  text-transform: uppercase;
-  color: var(--brick);
-  margin-bottom: 8px;
-}
+  td {
+    padding: 12px 16px;
+    vertical-align: middle;
+  }
 
-.timeline-item p { font-size: 16px; margin-bottom: 0; }
+  .item-name {
+    font-weight: 600;
+  }
 
-.divider {
-  display: flex;
-  align-items: center;
-  gap: 20px;
-  padding: 40px 0;
-  color: var(--dim);
-}
+  .serial {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text-dim);
+  }
 
-.divider::before, .divider::after {
-  content: '';
-  flex: 1;
-  height: 1px;
-  background: var(--rule);
-}
+  .category-tag {
+    font-family: var(--mono);
+    font-size: 10px;
+    padding: 3px 8px;
+    border-radius: 4px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    text-transform: uppercase;
+  }
 
-.divider span {
-  font-family: 'DM Mono', monospace;
-  font-size: 11px;
-  letter-spacing: 3px;
-  text-transform: uppercase;
-}
+  .status-badge {
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: 4px;
+    text-transform: uppercase;
+  }
 
-footer {
-  border-top: 1px solid var(--rule);
-  padding: 60px 40px;
-  text-align: center;
-}
+  .status-in {
+    background: var(--accent-dim);
+    color: var(--accent);
+    border: 1px solid var(--accent);
+  }
 
-footer p {
-  font-family: 'DM Mono', monospace;
-  font-size: 12px;
-  color: var(--dim);
-  letter-spacing: 1px;
-  max-width: none;
-  margin: 0 auto;
-}
+  .status-out {
+    background: var(--red-dim);
+    color: var(--red);
+    border: 1px solid var(--red);
+  }
 
-@media (max-width: 768px) {
-  .hero { padding: 40px 24px 60px; }
-  .content { padding: 0 24px; }
-  section { padding: 60px 0; }
-  .img-grid { grid-template-columns: 1fr; }
-  .img-grid img { height: 280px; }
-  .nav { padding: 12px 24px; }
-  .nav-links { gap: 16px; }
-  .stats { grid-template-columns: 1fr 1fr; }
-}
+  .timestamp {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-dim);
+  }
 
-@media (max-width: 480px) {
-  .nav-links { display: none; }
-  .stats { grid-template-columns: 1fr; }
-}
+  .notes-cell {
+    max-width: 200px;
+    font-size: 12px;
+    color: var(--text-dim);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .qr-thumb {
+    width: 40px;
+    height: 40px;
+    border-radius: 4px;
+    cursor: pointer;
+    border: 1px solid var(--border);
+    transition: transform 0.15s;
+  }
+
+  .qr-thumb:hover {
+    transform: scale(1.3);
+    border-color: var(--accent);
+  }
+
+  .actions-cell {
+    display: flex;
+    gap: 6px;
+  }
+
+  .actions-cell button {
+    padding: 5px 10px;
+    font-size: 11px;
+  }
+
+  /* Print QR Modal */
+  .print-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 16px;
+    max-height: 400px;
+    overflow-y: auto;
+    padding: 4px;
+  }
+
+  .print-card {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    text-align: center;
+    background: var(--surface2);
+  }
+
+  .print-card canvas {
+    margin: 0 auto 8px;
+  }
+
+  .print-card .pc-name {
+    font-size: 12px;
+    font-weight: 600;
+    margin-bottom: 2px;
+  }
+
+  .print-card .pc-serial {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-dim);
+  }
+
+  .empty-state {
+    text-align: center;
+    padding: 80px 32px;
+    color: var(--text-dim);
+  }
+
+  .empty-state h3 {
+    font-size: 18px;
+    margin-bottom: 8px;
+    color: var(--text);
+  }
+
+  .empty-state p {
+    font-size: 14px;
+    margin-bottom: 24px;
+  }
+
+  /* Toast */
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%) translateY(100px);
+    background: var(--surface);
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    font-family: var(--mono);
+    font-size: 13px;
+    padding: 12px 24px;
+    border-radius: 8px;
+    z-index: 2000;
+    transition: transform 0.3s;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  }
+
+  .toast.show { transform: translateX(-50%) translateY(0); }
+  .toast.error { border-color: var(--red); color: var(--red); }
+
+  /* Print styles */
+  @media print {
+    body { background: #fff; color: #000; }
+    .app-header, .stats-bar, .header-actions, .actions-cell,
+    .scanner-overlay, .modal-overlay, .toast, button { display: none !important; }
+    table { min-width: unset; }
+    .status-in, .status-out { border: 1px solid #000; background: none; color: #000; }
+  }
+
+  /* QR Print page */
+  .qr-print-page {
+    display: none;
+  }
+
+  @media print {
+    .qr-print-page {
+      display: block !important;
+      page-break-before: always;
+    }
+    .qr-print-page .qr-label {
+      display: inline-block;
+      width: 45%;
+      margin: 8px 2%;
+      text-align: center;
+      border: 1px dashed #ccc;
+      padding: 12px;
+      page-break-inside: avoid;
+    }
+    .qr-print-page .qr-label .ql-name {
+      font-weight: bold;
+      font-size: 11px;
+      margin-top: 6px;
+    }
+    .qr-print-page .qr-label .ql-serial {
+      font-size: 9px;
+      color: #666;
+    }
+  }
 </style>
 </head>
 <body>
 
-<nav class="nav" id="nav">
-  <a href="#top" class="nav-logo">Digging Deep</a>
-  <ul class="nav-links">
-    <li><a href="#survey">Survey</a></li>
-    <li><a href="#excavation">Dig</a></li>
-    <li><a href="#spoil">Spoil</a></li>
-    <li><a href="#underpinning">Underpinning</a></li>
-    <li><a href="#water">Water</a></li>
-    <li><a href="#slab">Slab</a></li>
-    <li><a href="#numbers">Numbers</a></li>
-  </ul>
-</nav>
-
-<div class="hero" id="top">
-  <div class="hero-content">
-    <div class="hero-tag">2018 — 2021 &bull; Near Guildford, Surrey</div>
-    <h1>Digging <em>Deep</em></h1>
-    <p class="hero-sub">How I spent three years building a full basement under an existing house — by hand, by machine, and by sheer bloody-mindedness.</p>
+<div class="app-header">
+  <div class="app-title"><div class="dot"></div> Sound Kit Tracker</div>
+  <div class="header-actions">
+    <button onclick="openScanner()">&#9655; Scan QR</button>
+    <button onclick="openAddModal()">+ Add Item</button>
+    <button onclick="openPrintModal()">Print QR Labels</button>
+    <button onclick="exportCSV()">Export CSV</button>
+    <button onclick="openImportModal()">Import CSV</button>
+    <button class="danger" onclick="resetData()">Reset</button>
   </div>
-  <div class="scroll-hint">Scroll</div>
 </div>
 
-<div class="content">
-
-  <section id="intro">
-    <div class="section-number">01 &mdash; The Idea</div>
-    <h2>What if there was a whole <em>floor</em> under here?</h2>
-    <p class="lead">Most people extend outward or upward. I decided to go down.</p>
-    <p>The house sits on a standard brick foundation near Guildford in Surrey — nothing special, nothing designed for conversion. But there was space beneath the ground floor: old footings, clay soil, and the ghost of a crawl space that had been filled in decades ago. The plan was ambitious but simple in concept: <strong>excavate the earth from beneath the existing house and create a fully usable lower ground floor</strong>.</p>
-    <p>Simple to say. Three years to do. What follows is the story of that dig — the surveys, the trenches, the underpinning, the flooding, the steel, and the moment you finally stand in a room that didn't exist when you started.</p>
-  </section>
-
-  <div class="divider"><span>&bull; &bull; &bull;</span></div>
-
-  <section id="survey">
-    <div class="section-number">02 &mdash; Surveying the Footings</div>
-    <h2>Measuring what's <em>already</em> there</h2>
-    <p class="lead">Before a single shovel hit dirt, every footing had to be mapped.</p>
-    <p>The existing foundations needed to be fully understood — their depths, widths, and condition at every point around the perimeter. I surveyed each footing location and recorded three key measurements: <strong>A (level/height in mm), B (footing width), and C (footing depth)</strong>. These varied significantly around the building, from 130mm to 240mm wide, and 292mm to 600mm deep.</p>
-    <div class="img-grid">
-      <div><img src="images/09_footings.jpg" alt="Footing survey data sheet" loading="lazy"></div>
-      <div><img src="images/10_dims.jpg" alt="Architectural layout drawing" loading="lazy"></div>
-    </div>
-    <div class="img-caption">Left: Hand-drawn footing survey with measurements at each perimeter point (A–K). Right: The proposed lower ground floor layout from Rivergate Consultants — marked clearly as "NOT for construction" pending structural calculations.</div>
-    <p>The architectural drawings showed the proposed layout — a stair void, reinforced concrete slab areas, new 215mm block walls at lower ground level, and a window opening to be widened with a new RSJ. The overall clear footprint came in around <strong>6,081mm × 6,545mm</strong> — a serious amount of usable space.</p>
-    <div class="pullquote">
-      <p>"No structural calculations have been undertaken yet. This drawing is NOT for construction."</p>
-      <cite>— Note on the Rivergate Consultants layout, September 2018</cite>
-    </div>
-  </section>
-
-  <div class="divider"><span>&bull; &bull; &bull;</span></div>
-
-  <section id="excavation">
-    <div class="section-number">03 &mdash; The Dig</div>
-    <h2>Breaking ground — <em>everywhere</em></h2>
-    <p class="lead">Once the design was locked, it was time to start digging. And digging. And digging.</p>
-    <div class="img-full">
-      <img src="images/01_front_dig.jpg" alt="Excavation along front of house" loading="lazy">
-      <div class="img-caption">The front elevation fully excavated, exposing the original brick foundation wall down to footing level. Cables, pipes, and root systems all had to be carefully worked around.</div>
-    </div>
-    <p>The excavation started from the outside — <strong>opening up trenches along the front and side of the house</strong> to expose the existing foundations. What you find when you dig next to a house that's stood for decades is a history lesson in brick, mortar, backfill, and buried services. Every metre uncovered something — old drain runs, root systems, cables that shouldn't have been where they were.</p>
-    <div class="img-grid">
-      <div><img src="images/04_meter_trench.jpg" alt="Narrow trench along front wall" loading="lazy"></div>
-      <div><img src="images/12_exterior_progress.jpg" alt="Exterior of house during works" loading="lazy"></div>
-    </div>
-    <div class="img-caption">Left: A narrow trench cut along the front wall for meter relocation — concrete path broken out to access services below. Right: The exterior during mid-project — backfilled and patched, but far from finished.</div>
-    <p>The gas and electric meters needed relocating, which meant <strong>trenching through the front pathway</strong> and dealing with the utility companies on their timeline, not yours.</p>
-    <div class="img-full">
-      <img src="images/02_front_dig_wide.jpg" alt="Wide excavation view" loading="lazy">
-      <div class="img-caption">The full front elevation during initial dig-out — tools, rubble, and the early stages of what would become a three-year project.</div>
-    </div>
-  </section>
-
-  <div class="divider"><span>&bull; &bull; &bull;</span></div>
-
-  <section id="spoil">
-    <div class="section-number">04 &mdash; Getting the Dirt Out</div>
-    <h2>The <em>conveyor</em> solution</h2>
-    <p class="lead">You can't dig a basement without somewhere for the earth to go — and you can't carry it up stairs that don't exist yet.</p>
-    <p>The biggest logistical challenge of any basement dig is spoil removal. You're underground, surrounded by walls, with tonnes of heavy clay that needs to get from down there to out there. The answer? <strong>Miniveyor conveyor belts</strong> — industrial-grade belt conveyors designed for exactly this kind of restricted-access earthwork.</p>
-    <div class="img-full">
-      <img src="images/06_conveyors.jpg" alt="Miniveyor conveyors on driveway" loading="lazy">
-      <div class="img-caption">Two Miniveyor units stacked on the driveway, ready for deployment. These motorised belt conveyors are purpose-built for moving spoil out of confined basement spaces.</div>
-    </div>
-    <p>The conveyors were fed through openings knocked into the exterior brick wall. From inside, one conveyor angled upward through the wall opening and connected to a second unit outside, which carried the spoil up and out to the muck-away pile.</p>
-    <div class="img-grid">
-      <div><img src="images/11_conveyor_inside_wide.jpg" alt="Conveyor inside the basement" loading="lazy"></div>
-      <div><img src="images/07_conveyor_inside.jpg" alt="Conveyor running up through wall opening" loading="lazy"></div>
-    </div>
-    <div class="img-caption">Inside the cellar space during the dig — conveyor belt running along the floor toward the wall opening, plywood boards guiding the spoil. Work light, shovel, and heavy clay everywhere.</div>
-    <div class="img-grid">
-      <div><img src="images/08_conveyor_outside.jpg" alt="Conveyors feeding out through wall" loading="lazy"></div>
-      <div><img src="images/13_spoil_heap.jpg" alt="Massive spoil heap on driveway" loading="lazy"></div>
-    </div>
-    <div class="img-caption">Left: Outside — conveyors running out of the wall openings, external trench visible below. Right: Where it all ends up. The spoil heap on the driveway — tonnes of Surrey clay, rubble, and broken brick, waiting for muck-away.</div>
-    <p>It's slow, noisy, messy work. The Surrey clay is heavy and sticky — it clogs everything, weighs a tonne, and doesn't shift easily. But metre by metre, bucket by bucket, the basement floor dropped and the headroom grew.</p>
-  </section>
-
-  <div class="divider"><span>&bull; &bull; &bull;</span></div>
-
-  <section id="underpinning">
-    <div class="section-number">05 &mdash; Underpinning</div>
-    <h2>Holding the house <em>up</em></h2>
-    <p class="lead">You can't just dig the ground out from under a house and hope for the best. Every existing footing had to be underpinned.</p>
-    <p>Underpinning is the structural heart of any basement conversion. The existing footings were never designed to carry the building above a void — they were designed to sit on solid ground. With that ground now being removed, <strong>new concrete had to be poured beneath the existing foundations in carefully sequenced sections</strong>, extending them down to the new formation level.</p>
-    <div class="img-full">
-      <img src="images/18_underpinning_steel.jpg" alt="Pyramid Steel RSJ with mini digger below" loading="lazy">
-      <div class="img-caption">The heavy end of the job — a Pyramid Steel RSJ spanning the opening, with a mini digger working the excavation beneath. Temporary props, Acrows, and timber needle beams supporting the structure while the underpinning goes in.</div>
-    </div>
-    <p>This was not a tidy process. A mini excavator worked inside the basement, digging out sections beneath the existing footings while the building above was temporarily supported on <strong>steel beams, Acrow props, and timber needles</strong>. Each section was dug, shuttered, and poured before moving to the next — you never underpin adjacent sections at the same time.</p>
-    <div class="img-grid">
-      <div><img src="images/16_underpinning_dig.jpg" alt="Underpinning excavation with water" loading="lazy"></div>
-      <div><img src="images/17_underpinning_detail.jpg" alt="Close up of underpinning beneath footing" loading="lazy"></div>
-    </div>
-    <div class="img-caption">Left: An underpinning pit dug to depth — waterlogged, as they often were. Right: Close-up beneath an existing footing — you can see the original concrete strip with the new excavation underneath, ready to be filled with concrete. Mini digger visible at the right edge.</div>
-    <div class="img-full">
-      <img src="images/19_materials.jpg" alt="Pallets of cement and sand on site" loading="lazy">
-      <div class="img-caption">The supply chain — pallets of Rugby fast-set cement, trade bags of sand and aggregate stacked on the drive. Behind them, the spoil heap and dismantled conveyor sections. A building site in a residential cul-de-sac.</div>
-    </div>
-  </section>
-
-  <div class="divider"><span>&bull; &bull; &bull;</span></div>
-
-  <section id="water">
-    <div class="section-number">06 &mdash; Fighting the Water</div>
-    <h2>When Surrey <em>floods</em></h2>
-    <p class="lead">Dig a big hole in clay ground and it will fill with water. That's not a risk — it's a certainty.</p>
-    <p>The water table in the Guildford area sits higher than you'd like when you're trying to build underground. Every time it rained — and this is England, so that's often — the excavation filled up. Groundwater seeped through the clay, surface water ran in through the wall openings, and the whole site turned into a swimming pool.</p>
-    <div class="img-full">
-      <img src="images/20_flooding_heic.jpg" alt="Flooded basement with mini digger submerged" loading="lazy">
-      <div class="img-caption">The low point — literally. The basement completely flooded, mini digger partially submerged, conveyor belt underwater. Everything stops until this gets pumped out.</div>
-    </div>
-    <p><strong>Pumps ran constantly.</strong> Submersible pumps sat in sumps at the lowest points, running around the clock to keep the water level manageable. But sometimes the rain won. The photo above shows one of the worst days — the mini digger sitting in muddy water, tools submerged, and the whole project on pause until the pumps could clear it.</p>
-    <p>This is the part they don't show you on Grand Designs. The unglamorous, frustrating, weather-dependent reality of working below ground level. You pump it out, you clean up, and you crack on.</p>
-  </section>
-
-  <div class="divider"><span>&bull; &bull; &bull;</span></div>
-
-  <section id="slab">
-    <div class="section-number">07 &mdash; The Slab</div>
-    <h2>From a hole to <em>a floor</em></h2>
-    <p class="lead">Once the underpinning was complete and the formation level reached, it was time to build the reinforced concrete slab.</p>
-    <div class="img-full">
-      <img src="images/14_rebar_mesh.jpg" alt="Steel reinforcement mesh laid across basement floor" loading="lazy">
-      <div class="img-caption">The full floor area laid with steel reinforcement mesh, raised on spacers, with a sump pump still working in the centre. Two wall openings visible — the former conveyor routes. Laser level set up on the back wall. Orange spray marks on the brick indicating reference levels.</div>
-    </div>
-    <p>The rebar mesh covered the entire floor area — <strong>a double layer of steel reinforcement sitting on spacers above the blinding</strong>, ready for the concrete pour. The sump pump stayed in place right up until the pour, keeping the water at bay. Getting concrete down into a basement through wall openings isn't straightforward either — it came in via a pump line, filling the shuttered floor section by section.</p>
-    <div class="img-full">
-      <img src="images/03_backfill_inside.jpg" alt="Inside basement during mid-stage works" loading="lazy">
-      <div class="img-caption">Earlier in the process — the earth partially excavated inside, services exposed, and daylight coming through the newly formed wall opening.</div>
-    </div>
-    <p>With the slab poured and cured, the space transformed. No longer a muddy pit — now a solid, level, reinforced concrete floor. The new block walls went up, the stair void was formed, and upstairs the ceiling structure took shape.</p>
-    <div class="img-full">
-      <img src="images/05_plasterboard.jpg" alt="Plasterboard ceiling installation" loading="lazy">
-      <div class="img-caption">Plasterboard going up on the ceiling above — taped joints, screw patterns visible, oak framing around the new stair opening. The transition from building site to liveable space.</div>
-    </div>
-  </section>
-
-  <div class="divider"><span>&bull; &bull; &bull;</span></div>
-
-  <section id="numbers">
-    <div class="section-number">08 &mdash; By the Numbers</div>
-    <h2>Three years in <em>figures</em></h2>
-    <div class="stats">
-      <div class="stat"><div class="stat-value">3</div><div class="stat-label">Years</div></div>
-      <div class="stat"><div class="stat-value">~40m²</div><div class="stat-label">New Floor Area</div></div>
-      <div class="stat"><div class="stat-value">6.1m</div><div class="stat-label">Clear Width</div></div>
-      <div class="stat"><div class="stat-value">6.5m</div><div class="stat-label">Clear Depth</div></div>
-      <div class="stat"><div class="stat-value">11</div><div class="stat-label">Survey Points</div></div>
-      <div class="stat"><div class="stat-value">∞</div><div class="stat-label">Pump Hours</div></div>
-    </div>
-    <div class="timeline">
-      <div class="timeline-item">
-        <h3>2018 — Survey & Design</h3>
-        <p>Footing survey completed. Architectural layout drawn up by Rivergate Consultants. Structural engineer engaged. Planning begins.</p>
-      </div>
-      <div class="timeline-item">
-        <h3>2019 — External Excavation</h3>
-        <p>Trenches dug around the perimeter. Foundations exposed and assessed. Meter relocation. Services identified, diverted, and protected. Conveyor system set up and spoil removal begins.</p>
-      </div>
-      <div class="timeline-item">
-        <h3>2020 — Internal Dig & Underpinning</h3>
-        <p>Tonnes of Surrey clay removed via conveyor belts. Mini digger brought in. Underpinning carried out in sequence — Pyramid Steel RSJs installed, Acrow props and needles supporting the structure. Constant battle with flooding and groundwater.</p>
-      </div>
-      <div class="timeline-item">
-        <h3>2021 — Slab, Structure & Finish</h3>
-        <p>Reinforced concrete slab poured over full floor area. New block walls built. Stair void formed. Plasterboard and finishing works upstairs. A basement where there wasn't one before.</p>
-      </div>
-    </div>
-  </section>
-
-  <div class="divider"><span>&bull; &bull; &bull;</span></div>
-
-  <section id="closing">
-    <h2>Built from <em>below</em></h2>
-    <p class="lead">Not every project goes sideways or upwards. Sometimes the best space in the house is the one you dig yourself.</p>
-    <p>Three years of weekends, evenings, planning arguments, clay under fingernails, flooded excavations, and conversations with building control. But at the end of it: a whole new floor. A room that didn't exist. Built not by extending the footprint of the house, but by going beneath it — one shovel, one conveyor belt, one stubborn decision at a time.</p>
-  </section>
-
+<div class="stats-bar">
+  <div class="stat-item">Total: <span id="statTotal">0</span></div>
+  <div class="stat-item checked-in">In Store: <span id="statIn">0</span></div>
+  <div class="stat-item checked-out">Checked Out: <span id="statOut">0</span></div>
+  <div class="stat-item" id="statTbcWrap" style="display:none;">Needs Attention: <span id="statTbc" style="color:var(--amber);">0</span></div>
 </div>
 
-<footer>
-  <p>Digging Deep &mdash; A self-build basement project near Guildford, Surrey &mdash; 2018–2021</p>
-</footer>
+<div class="filter-bar">
+  <input type="text" id="searchInput" placeholder="Search items, serials, notes..." oninput="render()">
+  <select id="filterCategory" onchange="render()">
+    <option value="">All Categories</option>
+    <option value="Microphone">Microphone</option>
+    <option value="Wireless">Wireless</option>
+    <option value="Cable">Cable</option>
+    <option value="Mixer">Mixer</option>
+    <option value="Comms">Comms</option>
+    <option value="Headphones">Headphones</option>
+    <option value="Accessory">Accessory</option>
+    <option value="PSU">PSU</option>
+    <option value="Monitor">Monitor</option>
+    <option value="Recorder">Recorder</option>
+    <option value="Other">Other</option>
+  </select>
+  <select id="filterStatus" onchange="render()">
+    <option value="">All Status</option>
+    <option value="in">In Store</option>
+    <option value="out">Checked Out</option>
+  </select>
+  <select id="filterOwner" onchange="render()">
+    <option value="">All Owners</option>
+    <option value="Supercoms">Supercoms</option>
+    <option value="DAZN">DAZN</option>
+    <option value="Terry Tew">Terry Tew</option>
+  </select>
+  <span class="filter-count" id="filterCount"></span>
+</div>
+
+<div class="table-wrap">
+  <table id="inventoryTable">
+    <thead>
+      <tr>
+        <th>QR</th>
+        <th>Item</th>
+        <th>Serial Number</th>
+        <th>Category</th>
+        <th>Status</th>
+        <th>Last Action</th>
+        <th>Notes</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody id="inventoryBody"></tbody>
+  </table>
+  <div class="empty-state" id="emptyState">
+    <h3>No gear yet</h3>
+    <p>Add your first item or import a CSV to get started.</p>
+    <button class="primary" onclick="openAddModal()">+ Add First Item</button>
+  </div>
+</div>
+
+<!-- Scanner Overlay -->
+<div class="scanner-overlay" id="scannerOverlay">
+  <div class="scanner-viewport">
+    <video id="scannerVideo" playsinline></video>
+    <div class="scan-line"></div>
+  </div>
+  <div class="scanner-status" id="scannerStatus">Initialising camera...</div>
+  <button class="danger" onclick="closeScanner()">Close Scanner</button>
+</div>
+
+<!-- Add/Edit Modal -->
+<div class="modal-overlay" id="addModal">
+  <div class="modal">
+    <h3 id="modalTitle">Add New Item</h3>
+    <div class="form-group">
+      <label>Item Name</label>
+      <input type="text" id="fName" placeholder="e.g. Sennheiser MKH 416">
+    </div>
+    <div class="form-group">
+      <label>Serial Number</label>
+      <input type="text" id="fSerial" placeholder="e.g. SN-2024-00145">
+    </div>
+    <div class="form-group">
+      <label>Category</label>
+      <select id="fCategory">
+        <option value="Microphone">Microphone</option>
+        <option value="Wireless">Wireless</option>
+        <option value="Cable">Cable</option>
+        <option value="Mixer">Mixer</option>
+        <option value="Recorder">Recorder</option>
+        <option value="Monitor">Monitor</option>
+        <option value="Headphones">Headphones</option>
+        <option value="Comms">Comms</option>
+        <option value="PSU">PSU</option>
+        <option value="Accessory">Accessory</option>
+        <option value="Other">Other</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Notes</label>
+      <textarea id="fNotes" placeholder="Optional notes..."></textarea>
+    </div>
+    <input type="hidden" id="fEditId">
+    <div class="modal-actions">
+      <button onclick="closeAddModal()">Cancel</button>
+      <button class="primary" onclick="saveItem()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Print QR Modal -->
+<div class="modal-overlay" id="printModal">
+  <div class="modal" style="max-width:700px;">
+    <h3>Print QR Labels</h3>
+    <p style="font-size:12px;color:var(--text-dim);margin-bottom:16px;">
+      Select items to print. Labels will open in a new window for printing.
+    </p>
+    <div style="margin-bottom:12px;">
+      <button onclick="selectAllPrint(true)" style="font-size:11px;">Select All</button>
+      <button onclick="selectAllPrint(false)" style="font-size:11px;">Deselect All</button>
+    </div>
+    <div class="print-grid" id="printGrid"></div>
+    <div class="modal-actions" style="flex-wrap:wrap;">
+      <button onclick="closePrintModal()">Cancel</button>
+      <button onclick="saveForILabel()" title="Save PNG images for iLabel app">Save for iLabel</button>
+      <button class="primary" onclick="printSelectedLabels()">Print (Browser)</button>
+    </div>
+    <p style="font-size:10px;color:var(--text-dim);margin-top:10px;font-family:var(--mono);line-height:1.5;">
+      <strong style="color:var(--accent);">iPhone → LW-C410 workflow:</strong> tap "Save for iLabel", then open each saved PNG in the iLabel app and place on a label. One QR per image.
+    </p>
+  </div>
+</div>
+
+<!-- Import Modal -->
+<div class="modal-overlay" id="importModal">
+  <div class="modal">
+    <h3>Import CSV</h3>
+    <p style="font-size:12px;color:var(--text-dim);margin-bottom:16px;">
+      CSV should have columns: Name, Serial, Category, Notes (in that order). First row is treated as header.
+    </p>
+    <div class="form-group">
+      <label>CSV File</label>
+      <input type="file" id="csvFileInput" accept=".csv" style="padding:8px;">
+    </div>
+    <div class="modal-actions">
+      <button onclick="closeImportModal()">Cancel</button>
+      <button class="primary" onclick="importCSV()">Import</button>
+    </div>
+  </div>
+</div>
+
+<!-- QR Detail Modal -->
+<div class="modal-overlay" id="qrDetailModal">
+  <div class="modal" style="text-align:center;">
+    <h3 id="qrDetailTitle">Item QR Code</h3>
+    <div id="qrDetailCode" style="display:inline-block;margin:16px 0;"></div>
+    <p style="font-family:var(--mono);font-size:11px;color:var(--text-dim);" id="qrDetailId"></p>
+    <div class="modal-actions" style="justify-content:center;">
+      <button onclick="closeQrDetail()">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Scan Result Modal -->
+<div class="modal-overlay" id="scanResultModal">
+  <div class="modal">
+    <h3 id="scanResultTitle">Item Found</h3>
+    <div id="scanResultContent"></div>
+    <div class="modal-actions" id="scanResultActions"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- Hidden div for generating QR codes offscreen -->
+<div id="qrFactory" style="position:absolute;left:-9999px;top:-9999px;"></div>
 
 <script>
-const nav = document.getElementById('nav');
-const hero = document.querySelector('.hero');
-const navObs = new IntersectionObserver(([e]) => {
-  nav.classList.toggle('visible', !e.isIntersecting);
-}, { threshold: 0.1 });
-navObs.observe(hero);
+  // ── State ──
+  let inventory = JSON.parse(localStorage.getItem('soundkit_inventory') || '[]');
+  let scanStream = null;
+  let scanInterval = null;
+  let printSelections = {};
 
-const sections = document.querySelectorAll('section');
-const secObs = new IntersectionObserver((entries) => {
-  entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('in-view'); });
-}, { threshold: 0.1, rootMargin: '0px 0px -60px 0px' });
-sections.forEach(s => secObs.observe(s));
+  // ── Persistence ──
+  function save() {
+    localStorage.setItem('soundkit_inventory', JSON.stringify(inventory));
+  }
+
+  // ── IDs ──
+  function genId() {
+    return 'SK-' + Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).substring(2,6).toUpperCase();
+  }
+
+  // ── QR Generation ──
+  function generateQRDataURL(text, size) {
+    const factory = document.getElementById('qrFactory');
+    factory.innerHTML = '';
+    const tempDiv = document.createElement('div');
+    factory.appendChild(tempDiv);
+    new QRCode(tempDiv, {
+      text: text,
+      width: size || 128,
+      height: size || 128,
+      colorDark: '#000000',
+      colorLight: '#ffffff',
+      correctLevel: QRCode.CorrectLevel.M
+    });
+    const canvas = tempDiv.querySelector('canvas');
+    return canvas ? canvas.toDataURL('image/png') : '';
+  }
+
+  // ── Render ──
+  function getFilteredInventory() {
+    const search = (document.getElementById('searchInput')?.value || '').toLowerCase();
+    const cat = document.getElementById('filterCategory')?.value || '';
+    const status = document.getElementById('filterStatus')?.value || '';
+    const owner = document.getElementById('filterOwner')?.value || '';
+
+    return inventory.filter(item => {
+      if (cat && item.category !== cat) return false;
+      if (status && item.status !== status) return false;
+      if (owner && !(item.notes || '').includes('Owner: ' + owner)) return false;
+      if (search) {
+        const haystack = (item.name + ' ' + item.serial + ' ' + item.notes + ' ' + item.category + ' ' + item.id).toLowerCase();
+        if (!haystack.includes(search)) return false;
+      }
+      return true;
+    });
+  }
+
+  function render() {
+    const tbody = document.getElementById('inventoryBody');
+    const empty = document.getElementById('emptyState');
+    const filtered = getFilteredInventory();
+
+    const inCount = inventory.filter(i => i.status === 'in').length;
+    const outCount = inventory.filter(i => i.status === 'out').length;
+    document.getElementById('statTotal').textContent = inventory.length;
+    document.getElementById('statIn').textContent = inCount;
+    document.getElementById('statOut').textContent = outCount;
+    const tbcCount = inventory.filter(i => i.notes && i.notes.includes('⚠️')).length;
+    document.getElementById('statTbc').textContent = tbcCount;
+    document.getElementById('statTbcWrap').style.display = tbcCount > 0 ? '' : 'none';
+
+    if (inventory.length === 0) {
+      tbody.innerHTML = '';
+      empty.style.display = 'block';
+      document.getElementById('filterCount').textContent = '';
+      return;
+    }
+
+    empty.style.display = 'none';
+    const showingAll = filtered.length === inventory.length;
+    document.getElementById('filterCount').textContent = showingAll ? '' : `Showing ${filtered.length} of ${inventory.length}`;
+
+    tbody.innerHTML = filtered.map(item => {
+      const qrUrl = generateQRDataURL(item.id, 40);
+      const statusClass = item.status === 'in' ? 'status-in' : 'status-out';
+      const statusLabel = item.status === 'in' ? 'IN STORE' : 'CHECKED OUT';
+      const toggleLabel = item.status === 'in' ? 'Check Out' : 'Check In';
+      const ts = item.lastAction ? new Date(item.lastAction).toLocaleString('en-GB', {day:'2-digit',month:'short',year:'2-digit',hour:'2-digit',minute:'2-digit'}) : '—';
+      return `<tr id="row-${item.id}">
+        <td><img class="qr-thumb" src="${qrUrl}" onclick="showQrDetail('${item.id}')" title="Click to enlarge"></td>
+        <td class="item-name">${esc(item.name)}</td>
+        <td class="serial">${esc(item.serial)}</td>
+        <td><span class="category-tag">${esc(item.category)}</span></td>
+        <td><span class="status-badge ${statusClass}">${statusLabel}</span></td>
+        <td class="timestamp">${ts}</td>
+        <td class="notes-cell" title="${esc(item.notes || '')}">${esc(item.notes || '—')}</td>
+        <td><div class="actions-cell">
+          <button onclick="toggleStatus('${item.id}')">${toggleLabel}</button>
+          <button onclick="editItem('${item.id}')">Edit</button>
+          <button class="danger" onclick="deleteItem('${item.id}')">Del</button>
+        </div></td>
+      </tr>`;
+    }).join('');
+  }
+
+  function esc(s) {
+    const d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+  }
+
+  // ── CRUD ──
+  function openAddModal(editId) {
+    document.getElementById('addModal').classList.add('active');
+    if (!editId) {
+      document.getElementById('modalTitle').textContent = 'Add New Item';
+      document.getElementById('fName').value = '';
+      document.getElementById('fSerial').value = '';
+      document.getElementById('fCategory').value = 'Microphone';
+      document.getElementById('fNotes').value = '';
+      document.getElementById('fEditId').value = '';
+    }
+    document.getElementById('fName').focus();
+  }
+
+  function closeAddModal() {
+    document.getElementById('addModal').classList.remove('active');
+  }
+
+  function saveItem() {
+    const name = document.getElementById('fName').value.trim();
+    const serial = document.getElementById('fSerial').value.trim();
+    const category = document.getElementById('fCategory').value;
+    const notes = document.getElementById('fNotes').value.trim();
+    const editId = document.getElementById('fEditId').value;
+
+    if (!name || !serial) {
+      toast('Name and serial are required', true);
+      return;
+    }
+
+    if (editId) {
+      const item = inventory.find(i => i.id === editId);
+      if (item) {
+        item.name = name;
+        item.serial = serial;
+        item.category = category;
+        item.notes = notes;
+      }
+    } else {
+      inventory.push({
+        id: genId(),
+        name,
+        serial,
+        category,
+        notes,
+        status: 'in',
+        lastAction: null,
+        history: []
+      });
+    }
+
+    save();
+    render();
+    closeAddModal();
+    toast(editId ? 'Item updated' : 'Item added');
+  }
+
+  function editItem(id) {
+    const item = inventory.find(i => i.id === id);
+    if (!item) return;
+    document.getElementById('modalTitle').textContent = 'Edit Item';
+    document.getElementById('fName').value = item.name;
+    document.getElementById('fSerial').value = item.serial;
+    document.getElementById('fCategory').value = item.category;
+    document.getElementById('fNotes').value = item.notes || '';
+    document.getElementById('fEditId').value = id;
+    document.getElementById('addModal').classList.add('active');
+  }
+
+  function deleteItem(id) {
+    if (!confirm('Delete this item?')) return;
+    inventory = inventory.filter(i => i.id !== id);
+    save();
+    render();
+    toast('Item deleted');
+  }
+
+  function toggleStatus(id) {
+    const item = inventory.find(i => i.id === id);
+    if (!item) return;
+    const newStatus = item.status === 'in' ? 'out' : 'in';
+    item.history.push({ from: item.status, to: newStatus, at: new Date().toISOString() });
+    item.status = newStatus;
+    item.lastAction = new Date().toISOString();
+    save();
+    render();
+    toast(newStatus === 'out' ? `${item.name} checked OUT` : `${item.name} checked IN`);
+    // Flash the row
+    const row = document.getElementById('row-' + id);
+    if (row) {
+      row.classList.add('just-scanned');
+      setTimeout(() => row.classList.remove('just-scanned'), 1500);
+    }
+  }
+
+  // ── QR Scanner ──
+  function openScanner() {
+    const overlay = document.getElementById('scannerOverlay');
+    overlay.classList.add('active');
+    const video = document.getElementById('scannerVideo');
+    const status = document.getElementById('scannerStatus');
+
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+      .then(stream => {
+        scanStream = stream;
+        video.srcObject = stream;
+        video.play();
+        status.textContent = 'Scanning... point at a QR code';
+        startScanning(video);
+      })
+      .catch(err => {
+        status.textContent = 'Camera error: ' + err.message;
+        // Fallback: manual entry
+        setTimeout(() => {
+          const code = prompt('Camera unavailable. Enter QR code / Item ID manually:');
+          if (code) handleScan(code.trim());
+          closeScanner();
+        }, 1000);
+      });
+  }
+
+  function startScanning(video) {
+    // Use BarcodeDetector if available, otherwise fall back to manual
+    if ('BarcodeDetector' in window) {
+      const detector = new BarcodeDetector({ formats: ['qr_code'] });
+      scanInterval = setInterval(async () => {
+        try {
+          const barcodes = await detector.detect(video);
+          if (barcodes.length > 0) {
+            const val = barcodes[0].rawValue;
+            clearInterval(scanInterval);
+            closeScanner();
+            handleScan(val);
+          }
+        } catch(e) {}
+      }, 300);
+    } else {
+      document.getElementById('scannerStatus').textContent =
+        'QR detection not supported in this browser. Use Chrome on Android, or enter ID manually.';
+      // Add manual fallback button
+      setTimeout(() => {
+        const code = prompt('Enter QR code / Item ID manually:');
+        if (code) handleScan(code.trim());
+        closeScanner();
+      }, 2000);
+    }
+  }
+
+  function closeScanner() {
+    if (scanInterval) clearInterval(scanInterval);
+    if (scanStream) {
+      scanStream.getTracks().forEach(t => t.stop());
+      scanStream = null;
+    }
+    document.getElementById('scannerOverlay').classList.remove('active');
+  }
+
+  function handleScan(value) {
+    const item = inventory.find(i => i.id === value);
+    if (!item) {
+      toast('Item not found: ' + value, true);
+      return;
+    }
+
+    // Show scan result modal
+    const modal = document.getElementById('scanResultModal');
+    const statusLabel = item.status === 'in' ? 'IN STORE' : 'CHECKED OUT';
+    const statusClass = item.status === 'in' ? 'status-in' : 'status-out';
+    const action = item.status === 'in' ? 'Check Out' : 'Check In';
+
+    document.getElementById('scanResultTitle').textContent = item.name;
+    document.getElementById('scanResultContent').innerHTML = `
+      <div style="margin:16px 0;">
+        <p style="margin-bottom:8px;"><strong>Serial:</strong> <span class="serial">${esc(item.serial)}</span></p>
+        <p style="margin-bottom:8px;"><strong>Category:</strong> <span class="category-tag">${esc(item.category)}</span></p>
+        <p style="margin-bottom:8px;"><strong>Status:</strong> <span class="status-badge ${statusClass}">${statusLabel}</span></p>
+        ${item.notes ? `<p style="margin-bottom:8px;"><strong>Notes:</strong> ${esc(item.notes)}</p>` : ''}
+      </div>
+    `;
+    document.getElementById('scanResultActions').innerHTML = `
+      <button onclick="closeScanResult()">Cancel</button>
+      <button class="primary" onclick="toggleStatus('${item.id}');closeScanResult();">${action}</button>
+    `;
+    modal.classList.add('active');
+  }
+
+  function closeScanResult() {
+    document.getElementById('scanResultModal').classList.remove('active');
+  }
+
+  // ── QR Detail ──
+  function showQrDetail(id) {
+    const item = inventory.find(i => i.id === id);
+    if (!item) return;
+    document.getElementById('qrDetailTitle').textContent = item.name;
+    document.getElementById('qrDetailId').textContent = item.id;
+    const container = document.getElementById('qrDetailCode');
+    container.innerHTML = '';
+    new QRCode(container, {
+      text: item.id,
+      width: 200,
+      height: 200,
+      colorDark: '#000000',
+      colorLight: '#ffffff',
+      correctLevel: QRCode.CorrectLevel.M
+    });
+    document.getElementById('qrDetailModal').classList.add('active');
+  }
+
+  function closeQrDetail() {
+    document.getElementById('qrDetailModal').classList.remove('active');
+  }
+
+  // ── Print QR Labels ──
+  function openPrintModal() {
+    if (inventory.length === 0) {
+      toast('No items to print', true);
+      return;
+    }
+    const grid = document.getElementById('printGrid');
+    printSelections = {};
+    inventory.forEach(item => { printSelections[item.id] = true; });
+
+    grid.innerHTML = inventory.map(item => {
+      const qrUrl = generateQRDataURL(item.id, 100);
+      return `<div class="print-card" id="pc-${item.id}" onclick="togglePrintSelect('${item.id}')" style="cursor:pointer;outline:2px solid var(--accent);">
+        <img src="${qrUrl}" width="100" height="100">
+        <div class="pc-name">${esc(item.name)}</div>
+        <div class="pc-serial">${esc(item.serial)}</div>
+      </div>`;
+    }).join('');
+
+    document.getElementById('printModal').classList.add('active');
+  }
+
+  function closePrintModal() {
+    document.getElementById('printModal').classList.remove('active');
+  }
+
+  function togglePrintSelect(id) {
+    printSelections[id] = !printSelections[id];
+    const card = document.getElementById('pc-' + id);
+    card.style.outline = printSelections[id] ? '2px solid var(--accent)' : '2px solid transparent';
+    card.style.opacity = printSelections[id] ? '1' : '0.4';
+  }
+
+  function selectAllPrint(val) {
+    inventory.forEach(item => {
+      printSelections[item.id] = val;
+      const card = document.getElementById('pc-' + item.id);
+      if (card) {
+        card.style.outline = val ? '2px solid var(--accent)' : '2px solid transparent';
+        card.style.opacity = val ? '1' : '0.4';
+      }
+    });
+  }
+
+  function printSelectedLabels() {
+    const selected = inventory.filter(i => printSelections[i.id]);
+    if (selected.length === 0) {
+      toast('No items selected', true);
+      return;
+    }
+
+    const printWin = window.open('', '_blank');
+    printWin.document.write(`<!DOCTYPE html><html><head><title>QR Labels - Sound Kit</title>
+    <style>
+      body { font-family: Arial, sans-serif; margin: 20px; }
+      .label-grid { display: flex; flex-wrap: wrap; gap: 12px; }
+      .label { border: 1px dashed #ccc; padding: 16px; text-align: center; width: 200px; page-break-inside: avoid; }
+      .label img { display: block; margin: 0 auto 8px; }
+      .label .name { font-weight: bold; font-size: 12px; margin-bottom: 2px; }
+      .label .serial { font-size: 10px; color: #666; font-family: monospace; }
+      .label .lid { font-size: 8px; color: #999; font-family: monospace; margin-top: 4px; }
+      @media print { body { margin: 10px; } .label { border: 1px dashed #aaa; } }
+    </style></head><body>
+    <div class="label-grid">`);
+
+    selected.forEach(item => {
+      const qrUrl = generateQRDataURL(item.id, 150);
+      printWin.document.write(`<div class="label">
+        <img src="${qrUrl}" width="150" height="150">
+        <div class="name">${esc(item.name)}</div>
+        <div class="serial">${esc(item.serial)}</div>
+        <div class="lid">${item.id}</div>
+      </div>`);
+    });
+
+    printWin.document.write(`</div>
+    <script>setTimeout(function(){ window.print(); }, 500);<\/script>
+    </body></html>`);
+    printWin.document.close();
+    closePrintModal();
+  }
+
+  // ── Save for iLabel (iPhone → LW-C410 workflow) ──
+  // Generates one PNG per selected item, sized for the LW-C410 label tape.
+  // On iPhone this triggers downloads straight to Files/Photos, which you then
+  // open in the iLabel app and drop onto a label template.
+  async function saveForILabel() {
+    const selected = inventory.filter(i => printSelections[i.id]);
+    if (selected.length === 0) {
+      toast('No items selected', true);
+      return;
+    }
+
+    // iOS limits rapid downloads. If >1 item selected, build a single combined
+    // PNG sheet instead of firing N downloads (which Safari blocks).
+    if (selected.length === 1) {
+      const blob = await buildLabelPNG(selected[0]);
+      triggerDownload(blob, sanitiseFilename(selected[0].name + '-' + selected[0].serial) + '.png');
+      toast('Saved 1 label — open it in iLabel');
+      closePrintModal();
+      return;
+    }
+
+    // Multiple items: build one combined sheet PNG
+    toast('Building label sheet...');
+    const blob = await buildCombinedSheet(selected);
+    const filename = 'sound-kit-labels-' + new Date().toISOString().slice(0,10) + '.png';
+    triggerDownload(blob, filename);
+    toast(`Saved sheet with ${selected.length} QR labels`);
+    closePrintModal();
+  }
+
+  // Build a single label PNG: QR on top, name + serial below
+  function buildLabelPNG(item) {
+    return new Promise((resolve) => {
+      const canvas = document.createElement('canvas');
+      // Optimised for LW-C410 12mm tape, square-ish layout
+      canvas.width = 400;
+      canvas.height = 500;
+      const ctx = canvas.getContext('2d');
+
+      // White background
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // Generate QR at high res
+      const qrUrl = generateQRDataURL(item.id, 360);
+      const img = new Image();
+      img.onload = () => {
+        // Draw QR centered, leave room below for text
+        ctx.drawImage(img, 20, 20, 360, 360);
+
+        // Item name (bold, wrapped if needed)
+        ctx.fillStyle = '#000000';
+        ctx.font = 'bold 28px Arial, sans-serif';
+        ctx.textAlign = 'center';
+        const name = item.name.length > 28 ? item.name.substring(0, 26) + '…' : item.name;
+        ctx.fillText(name, canvas.width / 2, 420);
+
+        // Serial
+        ctx.font = '22px monospace';
+        ctx.fillStyle = '#333333';
+        ctx.fillText('SN: ' + item.serial, canvas.width / 2, 455);
+
+        // Item ID (small)
+        ctx.font = '14px monospace';
+        ctx.fillStyle = '#666666';
+        ctx.fillText(item.id, canvas.width / 2, 485);
+
+        canvas.toBlob(blob => resolve(blob), 'image/png');
+      };
+      img.src = qrUrl;
+    });
+  }
+
+  // Build one combined PNG with a grid of all selected labels
+  function buildCombinedSheet(items) {
+    return new Promise(async (resolve) => {
+      const cellW = 400;
+      const cellH = 500;
+      const cols = Math.min(items.length, 3);
+      const rows = Math.ceil(items.length / cols);
+      const padding = 20;
+
+      const canvas = document.createElement('canvas');
+      canvas.width = cols * cellW + (cols + 1) * padding;
+      canvas.height = rows * cellH + (rows + 1) * padding + 60;
+      const ctx = canvas.getContext('2d');
+
+      // White background
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // Header
+      ctx.fillStyle = '#000000';
+      ctx.font = 'bold 28px Arial, sans-serif';
+      ctx.textAlign = 'left';
+      ctx.fillText('Sound Kit QR Labels — ' + new Date().toLocaleDateString('en-GB'), padding, 40);
+      ctx.font = '16px Arial, sans-serif';
+      ctx.fillStyle = '#666666';
+      ctx.fillText(items.length + ' items', padding, 62);
+
+      // Pre-generate all QR codes
+      const qrs = items.map(item => ({
+        item,
+        url: generateQRDataURL(item.id, 320)
+      }));
+
+      // Load all images then draw
+      const imgs = await Promise.all(qrs.map(q => new Promise(r => {
+        const i = new Image();
+        i.onload = () => r(i);
+        i.src = q.url;
+      })));
+
+      imgs.forEach((img, idx) => {
+        const col = idx % cols;
+        const row = Math.floor(idx / cols);
+        const x = padding + col * (cellW + padding);
+        const y = 80 + padding + row * (cellH + padding);
+
+        // Cell border (dashed visual guide for cutting)
+        ctx.strokeStyle = '#cccccc';
+        ctx.setLineDash([8, 6]);
+        ctx.lineWidth = 2;
+        ctx.strokeRect(x, y, cellW, cellH);
+        ctx.setLineDash([]);
+
+        // QR code
+        ctx.drawImage(img, x + 40, y + 20, 320, 320);
+
+        // Item name
+        ctx.fillStyle = '#000000';
+        ctx.font = 'bold 26px Arial, sans-serif';
+        ctx.textAlign = 'center';
+        const item = qrs[idx].item;
+        const name = item.name.length > 26 ? item.name.substring(0, 24) + '…' : item.name;
+        ctx.fillText(name, x + cellW / 2, y + 390);
+
+        // Serial
+        ctx.font = '22px monospace';
+        ctx.fillStyle = '#333333';
+        ctx.fillText('SN: ' + item.serial, x + cellW / 2, y + 425);
+
+        // Item ID
+        ctx.font = '14px monospace';
+        ctx.fillStyle = '#888888';
+        ctx.fillText(item.id, x + cellW / 2, y + 455);
+
+        // Category tag
+        ctx.font = '14px Arial, sans-serif';
+        ctx.fillStyle = '#666666';
+        ctx.fillText('[' + item.category + ']', x + cellW / 2, y + 480);
+      });
+
+      canvas.toBlob(blob => resolve(blob), 'image/png');
+    });
+  }
+
+  function triggerDownload(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  function sanitiseFilename(name) {
+    return name.replace(/[^a-z0-9-_]/gi, '_').substring(0, 50);
+  }
+
+  // ── CSV Export ──
+  function exportCSV() {
+    if (inventory.length === 0) {
+      toast('Nothing to export', true);
+      return;
+    }
+    const rows = [['ID', 'Name', 'Serial', 'Category', 'Status', 'Last Action', 'Notes']];
+    inventory.forEach(item => {
+      rows.push([
+        item.id,
+        item.name,
+        item.serial,
+        item.category,
+        item.status === 'in' ? 'IN' : 'OUT',
+        item.lastAction || '',
+        item.notes || ''
+      ]);
+    });
+
+    const csv = rows.map(r => r.map(c => '"' + String(c).replace(/"/g, '""') + '"').join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'sound-kit-inventory-' + new Date().toISOString().slice(0,10) + '.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+    toast('CSV exported');
+  }
+
+  // ── CSV Import ──
+  function openImportModal() {
+    document.getElementById('importModal').classList.add('active');
+  }
+
+  function closeImportModal() {
+    document.getElementById('importModal').classList.remove('active');
+  }
+
+  function importCSV() {
+    const fileInput = document.getElementById('csvFileInput');
+    const file = fileInput.files[0];
+    if (!file) {
+      toast('Select a CSV file', true);
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      const text = e.target.result;
+      const lines = text.split('\n').map(l => l.trim()).filter(l => l);
+      if (lines.length < 2) {
+        toast('CSV appears empty', true);
+        return;
+      }
+
+      // Skip header row
+      let imported = 0;
+      for (let i = 1; i < lines.length; i++) {
+        const cols = parseCSVLine(lines[i]);
+        if (cols.length >= 2) {
+          inventory.push({
+            id: genId(),
+            name: cols[0] || 'Unknown',
+            serial: cols[1] || 'N/A',
+            category: cols[2] || 'Other',
+            notes: cols[3] || '',
+            status: 'in',
+            lastAction: null,
+            history: []
+          });
+          imported++;
+        }
+      }
+      save();
+      render();
+      closeImportModal();
+      toast(`Imported ${imported} items`);
+    };
+    reader.readAsText(file);
+  }
+
+  function parseCSVLine(line) {
+    const result = [];
+    let current = '';
+    let inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (inQuotes) {
+        if (ch === '"' && line[i+1] === '"') { current += '"'; i++; }
+        else if (ch === '"') { inQuotes = false; }
+        else { current += ch; }
+      } else {
+        if (ch === '"') { inQuotes = true; }
+        else if (ch === ',') { result.push(current.trim()); current = ''; }
+        else { current += ch; }
+      }
+    }
+    result.push(current.trim());
+    return result;
+  }
+
+  // ── Toast ──
+  function toast(msg, isError) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className = 'toast show' + (isError ? ' error' : '');
+    setTimeout(() => { t.className = 'toast'; }, 2500);
+  }
+
+  // ── Reset ──
+  function resetData() {
+    if (!confirm('This will DELETE all inventory data and reload the seed kit list. Are you sure?')) return;
+    localStorage.removeItem('soundkit_inventory');
+    inventory = [];
+    seedIfEmpty();
+    render();
+    toast('Data reset to seed kit list');
+  }
+
+  // ── Seed Data (Ring 4 Saudi Kit) ──
+  function seedIfEmpty() {
+    if (inventory.length > 0) return;
+    const seedItems = [
+      {name:"Sennheiser 418",serial:"33",category:"Microphone",notes:"Use: Main FX | Owner: Supercoms | Value: £300"},
+      {name:"Sennheiser 416",serial:"34",category:"Microphone",notes:"Use: Red Corner | Owner: Supercoms | Value: £300"},
+      {name:"Sennheiser 416",serial:"35",category:"Microphone",notes:"Use: Blue Corner | Owner: Supercoms | Value: £300"},
+      {name:"Sennheiser (TBC)",serial:"TBC-04",category:"Microphone",notes:"Value: £300 | ⚠️ Model/serial missing from Numbers import"},
+      {name:"Sennheiser (TBC)",serial:"TBC-05",category:"Microphone",notes:"Value: £300 | ⚠️ Model/serial missing from Numbers import"},
+      {name:"Sennheiser (TBC)",serial:"TBC-06",category:"Microphone",notes:"Value: £300 | ⚠️ Model/serial missing from Numbers import"},
+      {name:"Sennheiser (TBC)",serial:"TBC-07",category:"Microphone",notes:"Value: £300 | ⚠️ Model/serial missing from Numbers import"},
+      {name:"Sennheiser (TBC)",serial:"TBC-08",category:"Microphone",notes:"Value: £300 | ⚠️ Model/serial missing from Numbers import"},
+      {name:"Sennheiser (TBC)",serial:"TBC-09",category:"Microphone",notes:"Value: £300 | ⚠️ Model/serial missing from Numbers import"},
+      {name:"Sennheiser (TBC)",serial:"TBC-10",category:"Microphone",notes:"Value: £300 | ⚠️ Model/serial missing from Numbers import"},
+      {name:"Sennheiser (TBC)",serial:"TBC-11",category:"Microphone",notes:"⚠️ Model/serial missing from Numbers import"},
+      {name:"Sennheiser (TBC)",serial:"TBC-12",category:"Microphone",notes:"⚠️ Model/serial missing from Numbers import"},
+      {name:"Sennheiser (TBC)",serial:"TBC-13",category:"Microphone",notes:"⚠️ Model/serial missing from Numbers import"},
+      {name:"Sennheiser (TBC)",serial:"TBC-14",category:"Microphone",notes:"⚠️ Model/serial missing from Numbers import"},
+      {name:"Sennheiser 8070 Mic",serial:"31",category:"Microphone",notes:"Use: Cam 3 | Owner: Supercoms | Value: £300"},
+      {name:"Sennheiser 8070 Mic",serial:"32",category:"Microphone",notes:"Use: Cam 4 | Owner: Supercoms | Value: £300"},
+      {name:"Fel Mic Booster",serial:"8",category:"Accessory",notes:"Owner: Supercoms | Value: £80"},
+      {name:"Fel Mic Booster",serial:"9",category:"Accessory",notes:"Owner: Supercoms | Value: £80"},
+      {name:"Fel Mic Booster",serial:"10",category:"Accessory",notes:"Owner: Supercoms | Value: £80"},
+      {name:"Fel Mic Booster",serial:"11",category:"Accessory",notes:"Owner: Supercoms | Value: £80"},
+      {name:"XLR x 12",serial:"N/A",category:"Cable",notes:"Owner: Supercoms | Value: £5"},
+      {name:"Sennheiser Handheld 835",serial:"HH-1",category:"Microphone",notes:"Owner: Supercoms | Value: £70"},
+      {name:"Sennheiser Handheld 835",serial:"HH-2",category:"Microphone",notes:"Owner: Supercoms | Value: £70"},
+      {name:"Sennheiser Handheld 835",serial:"HH-3",category:"Microphone",notes:"Owner: Supercoms | Value: £70"},
+      {name:"Sennheiser Handheld 835",serial:"HH-4",category:"Microphone",notes:"Owner: Supercoms | Value: £70"},
+      {name:"Sennheiser Handheld 835",serial:"HH-5",category:"Microphone",notes:"Owner: Supercoms | Value: £70"},
+      {name:"Sennheiser Handheld 835",serial:"HH-6",category:"Microphone",notes:"Owner: Supercoms | Value: £70"},
+      {name:"Shure IEM 215",serial:"IEM-01",category:"Headphones",notes:"Owner: Supercoms | Value: £60"},
+      {name:"Shure IEM 215",serial:"IEM-02",category:"Headphones",notes:"Owner: Supercoms | Value: £60"},
+      {name:"Shure IEM 215",serial:"IEM-03",category:"Headphones",notes:"Owner: Supercoms | Value: £60"},
+      {name:"Shure IEM 215",serial:"IEM-04",category:"Headphones",notes:"Owner: Supercoms | Value: £60"},
+      {name:"Shure IEM 215",serial:"IEM-05",category:"Headphones",notes:"Owner: Supercoms | Value: £60"},
+      {name:"Shure IEM 215",serial:"IEM-06",category:"Headphones",notes:"Owner: Supercoms | Value: £60"},
+      {name:"Shure IEM 215",serial:"IEM-07",category:"Headphones",notes:"Owner: Supercoms | Value: £60"},
+      {name:"Shure IEM 215",serial:"IEM-08",category:"Headphones",notes:"Value: £60"},
+      {name:"Shure IEM 215",serial:"IEM-09",category:"Headphones",notes:"Value: £60"},
+      {name:"Dante MADI Converter",serial:"N/A",category:"Comms",notes:"Owner: DAZN | Value: £800"},
+      {name:"DANTE COMS Box 1",serial:"21",category:"Comms",notes:"Owner: Supercoms | Value: £400"},
+      {name:"DANTE COMS Box 2",serial:"22",category:"Comms",notes:"Owner: Supercoms | Value: £400"},
+      {name:"DANTE COMS Box 3",serial:"23",category:"Comms",notes:"Owner: Supercoms | Value: £400"},
+      {name:"DANTE COMS Box 4",serial:"24",category:"Comms",notes:"Owner: Supercoms | Value: £400"},
+      {name:"302 Mixer",serial:"29",category:"Mixer",notes:"Owner: Supercoms | Value: £200"},
+      {name:"RIEDEL",serial:"RIEDEL-43",category:"Comms",notes:"Owner: Terry Tew | Value: £150"},
+      {name:"RIEDEL",serial:"RIEDEL-44",category:"Comms",notes:"Owner: Terry Tew | Value: £150"},
+      {name:"RIEDEL",serial:"RIEDEL-45",category:"Comms",notes:"Owner: Terry Tew | Value: £150"},
+      {name:"RIEDEL",serial:"RIEDEL-46",category:"Comms",notes:"Owner: Terry Tew | Value: £150"},
+      {name:"Behringer Mic Splitter",serial:"N/A",category:"Accessory",notes:"Owner: DAZN | Value: £50"},
+      {name:"Riedel Comms Matrix",serial:"10017",category:"Comms",notes:"Owner: Supercoms | Value: £750"},
+      {name:"Shure Axient ADX5D",serial:"ADX5D-01",category:"Wireless",notes:"Value: £500"},
+      {name:"Shure Axient ADX5D",serial:"ADX5D-02",category:"Wireless",notes:"Value: £500"},
+      {name:"Shure Axient ADX5D",serial:"ADX5D-03",category:"Wireless",notes:"Value: £500"},
+      {name:"Shure Axient ADX5D",serial:"ADX5D-04",category:"Wireless",notes:"Value: £500"},
+      {name:"Shure Axient ADX5D",serial:"ADX5D-05",category:"Wireless",notes:"Value: £500"},
+      {name:"Riedel Panel",serial:"10001",category:"Comms",notes:"Owner: Supercoms | Value: £150"},
+      {name:"Riedel Panel",serial:"10002",category:"Comms",notes:"Owner: Supercoms | Value: £150"},
+      {name:"Riedel Panel",serial:"10003",category:"Comms",notes:"Owner: Supercoms | Value: £150"},
+      {name:"Riedel Panel",serial:"10004",category:"Comms",notes:"Owner: Supercoms | Value: £150"},
+      {name:"Riedel Panel",serial:"10005",category:"Comms",notes:"Owner: Supercoms | Value: £150"},
+      {name:"Riedel Panel",serial:"10006",category:"Comms",notes:"Owner: Supercoms | Value: £150"},
+      {name:"Riedel Panel",serial:"10007",category:"Comms",notes:"Owner: Supercoms | Value: £150"},
+      {name:"Riedel Panel",serial:"10008",category:"Comms",notes:"Owner: Supercoms | Value: £150"},
+      {name:"Riedel Panel",serial:"10009",category:"Comms",notes:"Owner: Supercoms | Value: £150"},
+      {name:"Riedel Panel",serial:"10010",category:"Comms",notes:"Owner: Supercoms | Value: £150"},
+      {name:"Riedel Panel",serial:"10011",category:"Comms",notes:"Owner: Supercoms | Value: £150"},
+      {name:"Riedel Panel",serial:"10012",category:"Comms",notes:"Owner: Supercoms | Value: £150"},
+      {name:"Riedel Panel",serial:"10013",category:"Comms",notes:"Owner: Supercoms | Value: £150"},
+      {name:"Riedel Panel",serial:"10014",category:"Comms",notes:"Owner: Supercoms | Value: £150"},
+      {name:"Riedel Panel",serial:"10015",category:"Comms",notes:"Owner: Supercoms | Value: £150"}
+    ];
+    seedItems.forEach(s => {
+      inventory.push({
+        id: genId(),
+        name: s.name,
+        serial: s.serial,
+        category: s.category,
+        notes: s.notes,
+        status: 'in',
+        lastAction: null,
+        history: []
+      });
+    });
+    save();
+  }
+
+  // ── Init ──
+  seedIfEmpty();
+  render();
 </script>
-
 </body>
 </html>
