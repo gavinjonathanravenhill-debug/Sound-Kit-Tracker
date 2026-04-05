@@ -6,6 +6,7 @@
 <title>Sound Kit Tracker</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap');
 
@@ -64,6 +65,39 @@
     background: var(--accent);
     box-shadow: 0 0 12px var(--accent);
     animation: pulse 2s infinite;
+  }
+
+  .sync-indicator {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-dim);
+    padding: 4px 10px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+  }
+
+  .sync-indicator .sync-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--text-dim);
+  }
+
+  .sync-indicator.synced .sync-dot {
+    background: var(--accent);
+    box-shadow: 0 0 6px var(--accent);
+  }
+
+  .sync-indicator.syncing .sync-dot {
+    background: var(--amber);
+    animation: pulse 1s infinite;
+  }
+
+  .sync-indicator.error .sync-dot {
+    background: var(--red);
   }
 
   @keyframes pulse {
@@ -555,7 +589,12 @@
 <body>
 
 <div class="app-header">
-  <div class="app-title"><div class="dot"></div> Sound Kit Tracker</div>
+  <div class="app-title">
+    <div class="dot"></div> Sound Kit Tracker
+    <div class="sync-indicator" id="syncIndicator" title="Cloud sync status">
+      <div class="sync-dot"></div><span id="syncText">Connecting...</span>
+    </div>
+  </div>
   <div class="header-actions">
     <button onclick="openScanner()">&#9655; Scan QR</button>
     <button onclick="openAddModal()">+ Add Item</button>
@@ -744,16 +783,134 @@
 <div id="qrFactory" style="position:absolute;left:-9999px;top:-9999px;"></div>
 
 <script>
+  // ── Supabase Configuration ──
+  const SUPABASE_URL = 'https://hjaamieysnjlwnmdjnqa.supabase.co';
+  const SUPABASE_KEY = 'sb_publishable_Eyd_zgODX0ajr2J-PpFYsg_II3kt5VA';
+  const supa = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
   // ── State ──
+  // inventory is the local cache — used for instant rendering and offline fallback.
+  // It's populated from Supabase on load and kept in sync via realtime subscriptions.
   let inventory = JSON.parse(localStorage.getItem('soundkit_inventory') || '[]');
   let scanStream = null;
   let scanInterval = null;
   let printSelections = {};
+  let isOnline = false;
 
-  // ── Persistence ──
-  function save() {
+  // ── Sync status ──
+  function setSyncStatus(state, text) {
+    const ind = document.getElementById('syncIndicator');
+    if (!ind) return;
+    ind.className = 'sync-indicator ' + state;
+    document.getElementById('syncText').textContent = text;
+  }
+
+  // ── Persistence: write-through to Supabase, cache to localStorage ──
+  function saveCache() {
     localStorage.setItem('soundkit_inventory', JSON.stringify(inventory));
   }
+
+  // Convert app item to DB row format (snake_case columns)
+  function itemToRow(item) {
+    return {
+      id: item.id,
+      name: item.name,
+      serial: item.serial,
+      category: item.category,
+      notes: item.notes || '',
+      status: item.status || 'in',
+      last_action: item.lastAction || null,
+      history: item.history || []
+    };
+  }
+
+  // Convert DB row to app item format (camelCase fields)
+  function rowToItem(row) {
+    return {
+      id: row.id,
+      name: row.name,
+      serial: row.serial,
+      category: row.category,
+      notes: row.notes || '',
+      status: row.status || 'in',
+      lastAction: row.last_action,
+      history: row.history || []
+    };
+  }
+
+  // Upsert a single item to Supabase
+  async function dbUpsert(item) {
+    setSyncStatus('syncing', 'Saving...');
+    try {
+      const { error } = await supa.from('items').upsert(itemToRow(item));
+      if (error) throw error;
+      setSyncStatus('synced', 'Synced');
+      return true;
+    } catch (e) {
+      console.error('Upsert failed:', e);
+      setSyncStatus('error', 'Offline');
+      toast('Sync error — saved locally only', true);
+      return false;
+    }
+  }
+
+  // Delete a single item from Supabase
+  async function dbDelete(id) {
+    setSyncStatus('syncing', 'Deleting...');
+    try {
+      const { error } = await supa.from('items').delete().eq('id', id);
+      if (error) throw error;
+      setSyncStatus('synced', 'Synced');
+      return true;
+    } catch (e) {
+      console.error('Delete failed:', e);
+      setSyncStatus('error', 'Offline');
+      return false;
+    }
+  }
+
+  // Initial load from Supabase
+  async function dbLoadAll() {
+    setSyncStatus('syncing', 'Loading...');
+    try {
+      const { data, error } = await supa.from('items').select('*').order('created_at', { ascending: true });
+      if (error) throw error;
+      inventory = (data || []).map(rowToItem);
+      saveCache();
+      isOnline = true;
+      setSyncStatus('synced', 'Synced');
+      return true;
+    } catch (e) {
+      console.error('Load failed:', e);
+      isOnline = false;
+      setSyncStatus('error', 'Offline (cached)');
+      toast('Using cached data — check connection', true);
+      return false;
+    }
+  }
+
+  // Realtime subscription — other devices' changes stream in here
+  function dbSubscribe() {
+    supa.channel('items-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'items' }, (payload) => {
+        const evt = payload.eventType;
+        if (evt === 'INSERT' || evt === 'UPDATE') {
+          const newItem = rowToItem(payload.new);
+          const idx = inventory.findIndex(i => i.id === newItem.id);
+          if (idx >= 0) inventory[idx] = newItem;
+          else inventory.push(newItem);
+        } else if (evt === 'DELETE') {
+          inventory = inventory.filter(i => i.id !== payload.old.id);
+        }
+        saveCache();
+        render();
+      })
+      .subscribe();
+  }
+
+  // Legacy save() wrapper — kept so existing code paths still work
+  // Most call sites now call dbUpsert directly for a specific item
+  function save() { saveCache(); }
 
   // ── IDs ──
   function genId() {
@@ -869,7 +1026,7 @@
     document.getElementById('addModal').classList.remove('active');
   }
 
-  function saveItem() {
+  async function saveItem() {
     const name = document.getElementById('fName').value.trim();
     const serial = document.getElementById('fSerial').value.trim();
     const category = document.getElementById('fCategory').value;
@@ -881,8 +1038,9 @@
       return;
     }
 
+    let item;
     if (editId) {
-      const item = inventory.find(i => i.id === editId);
+      item = inventory.find(i => i.id === editId);
       if (item) {
         item.name = name;
         item.serial = serial;
@@ -890,7 +1048,7 @@
         item.notes = notes;
       }
     } else {
-      inventory.push({
+      item = {
         id: genId(),
         name,
         serial,
@@ -899,13 +1057,15 @@
         status: 'in',
         lastAction: null,
         history: []
-      });
+      };
+      inventory.push(item);
     }
 
-    save();
+    saveCache();
     render();
     closeAddModal();
     toast(editId ? 'Item updated' : 'Item added');
+    if (item) await dbUpsert(item);
   }
 
   function editItem(id) {
@@ -920,22 +1080,23 @@
     document.getElementById('addModal').classList.add('active');
   }
 
-  function deleteItem(id) {
+  async function deleteItem(id) {
     if (!confirm('Delete this item?')) return;
     inventory = inventory.filter(i => i.id !== id);
-    save();
+    saveCache();
     render();
     toast('Item deleted');
+    await dbDelete(id);
   }
 
-  function toggleStatus(id) {
+  async function toggleStatus(id) {
     const item = inventory.find(i => i.id === id);
     if (!item) return;
     const newStatus = item.status === 'in' ? 'out' : 'in';
     item.history.push({ from: item.status, to: newStatus, at: new Date().toISOString() });
     item.status = newStatus;
     item.lastAction = new Date().toISOString();
-    save();
+    saveCache();
     render();
     toast(newStatus === 'out' ? `${item.name} checked OUT` : `${item.name} checked IN`);
     // Flash the row
@@ -944,6 +1105,7 @@
       row.classList.add('just-scanned');
       setTimeout(() => row.classList.remove('just-scanned'), 1500);
     }
+    await dbUpsert(item);
   }
 
   // ── QR Scanner ──
@@ -1392,7 +1554,7 @@
     }
 
     const reader = new FileReader();
-    reader.onload = function(e) {
+    reader.onload = async function(e) {
       const text = e.target.result;
       const lines = text.split('\n').map(l => l.trim()).filter(l => l);
       if (lines.length < 2) {
@@ -1401,11 +1563,11 @@
       }
 
       // Skip header row
-      let imported = 0;
+      const newItems = [];
       for (let i = 1; i < lines.length; i++) {
         const cols = parseCSVLine(lines[i]);
         if (cols.length >= 2) {
-          inventory.push({
+          const item = {
             id: genId(),
             name: cols[0] || 'Unknown',
             serial: cols[1] || 'N/A',
@@ -1414,14 +1576,31 @@
             status: 'in',
             lastAction: null,
             history: []
-          });
-          imported++;
+          };
+          inventory.push(item);
+          newItems.push(item);
         }
       }
-      save();
+      saveCache();
       render();
       closeImportModal();
-      toast(`Imported ${imported} items`);
+      toast(`Imported ${newItems.length} items — syncing...`);
+
+      // Bulk push to Supabase
+      if (newItems.length > 0) {
+        setSyncStatus('syncing', 'Syncing import...');
+        try {
+          const rows = newItems.map(itemToRow);
+          const { error } = await supa.from('items').upsert(rows);
+          if (error) throw error;
+          setSyncStatus('synced', 'Synced');
+          toast(`${newItems.length} items synced to cloud`);
+        } catch (err) {
+          console.error('Import sync failed:', err);
+          setSyncStatus('error', 'Sync failed');
+          toast('Items imported locally but sync failed', true);
+        }
+      }
     };
     reader.readAsText(file);
   }
@@ -1455,18 +1634,25 @@
   }
 
   // ── Reset ──
-  function resetData() {
-    if (!confirm('This will DELETE all inventory data and reload the seed kit list. Are you sure?')) return;
+  async function resetData() {
+    if (!confirm('This will DELETE all inventory data (on ALL synced devices) and reload the seed kit list. Are you sure?')) return;
+    setSyncStatus('syncing', 'Resetting...');
+    try {
+      // Wipe the cloud table
+      await supa.from('items').delete().neq('id', '__nothing__');
+    } catch (e) {
+      console.error('Cloud wipe failed:', e);
+    }
     localStorage.removeItem('soundkit_inventory');
     inventory = [];
-    seedIfEmpty();
+    await seedIfEmpty(true);
     render();
-    toast('Data reset to seed kit list');
+    toast('Data reset and synced to cloud');
   }
 
   // ── Seed Data (Ring 4 Saudi Kit) ──
-  function seedIfEmpty() {
-    if (inventory.length > 0) return;
+  async function seedIfEmpty(forceCloud) {
+    if (inventory.length > 0 && !forceCloud) return;
     const seedItems = [
       {name:"Sennheiser 418",serial:"33",category:"Microphone",notes:"Use: Main FX | Owner: Supercoms | Value: £300"},
       {name:"Sennheiser 416",serial:"34",category:"Microphone",notes:"Use: Red Corner | Owner: Supercoms | Value: £300"},
@@ -1549,12 +1735,41 @@
         history: []
       });
     });
-    save();
+    saveCache();
+
+    // Push the whole seed batch to Supabase in one bulk upsert
+    if (forceCloud || isOnline) {
+      setSyncStatus('syncing', 'Seeding cloud...');
+      try {
+        const rows = inventory.map(itemToRow);
+        const { error } = await supa.from('items').upsert(rows);
+        if (error) throw error;
+        setSyncStatus('synced', 'Synced');
+      } catch (e) {
+        console.error('Seed push failed:', e);
+        setSyncStatus('error', 'Offline');
+      }
+    }
   }
 
   // ── Init ──
-  seedIfEmpty();
-  render();
+  async function init() {
+    // Render cached data immediately for fast perceived load
+    render();
+
+    // Then pull fresh from Supabase
+    const loaded = await dbLoadAll();
+
+    if (loaded && inventory.length === 0) {
+      // Cloud is empty — seed it with Ring 4 Saudi kit
+      await seedIfEmpty(true);
+    }
+
+    render();
+    dbSubscribe();
+  }
+
+  init();
 </script>
 </body>
 </html>
