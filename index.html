@@ -812,7 +812,7 @@
 
   // Convert app item to DB row format (snake_case columns)
   function itemToRow(item) {
-    return {
+    const row = {
       id: item.id,
       name: item.name,
       serial: item.serial,
@@ -822,6 +822,8 @@
       last_action: item.lastAction || null,
       history: item.history || []
     };
+    if (item.position != null) row.position = item.position;
+    return row;
   }
 
   // Convert DB row to app item format (camelCase fields)
@@ -835,7 +837,8 @@
       status: row.status || 'in',
       lastAction: row.last_action,
       history: row.history || [],
-      createdAt: row.created_at
+      createdAt: row.created_at,
+      position: row.position
     };
   }
 
@@ -874,7 +877,7 @@
   async function dbLoadAll() {
     setSyncStatus('syncing', 'Loading...');
     try {
-      const { data, error } = await supa.from('items').select('*').order('created_at', { ascending: true });
+      const { data, error } = await supa.from('items').select('*').order('position', { ascending: true, nullsFirst: false }).order('id', { ascending: true });
       if (error) throw error;
       inventory = (data || []).map(rowToItem);
       sortInventory();
@@ -891,13 +894,17 @@
     }
   }
 
-  // Realtime subscription — other devices' changes stream in here
-  // Sort inventory by creation time so order is stable across devices
+  // Sort inventory by position — explicit order column in the database
+  // that never changes when items are edited.
   function sortInventory() {
     inventory.sort((a, b) => {
-      const aTime = a.createdAt || a.id;
-      const bTime = b.createdAt || b.id;
-      return aTime < bTime ? -1 : aTime > bTime ? 1 : 0;
+      const ap = a.position ?? 999999;
+      const bp = b.position ?? 999999;
+      if (ap !== bp) return ap - bp;
+      // Tiebreaker on id for determinism
+      if (a.id < b.id) return -1;
+      if (a.id > b.id) return 1;
+      return 0;
     });
   }
 
@@ -1063,6 +1070,7 @@
         item.notes = notes;
       }
     } else {
+      const maxPos = inventory.reduce((m, i) => Math.max(m, i.position ?? 0), 0);
       item = {
         id: genId(),
         name,
@@ -1071,7 +1079,8 @@
         notes,
         status: 'in',
         lastAction: null,
-        history: []
+        history: [],
+        position: maxPos + 1
       };
       inventory.push(item);
     }
