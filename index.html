@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Sound Kit Tracker</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap');
 
@@ -63,6 +65,39 @@
     background: var(--accent);
     box-shadow: 0 0 12px var(--accent);
     animation: pulse 2s infinite;
+  }
+
+  .sync-indicator {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-dim);
+    padding: 4px 10px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+  }
+
+  .sync-indicator .sync-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--text-dim);
+  }
+
+  .sync-indicator.synced .sync-dot {
+    background: var(--accent);
+    box-shadow: 0 0 6px var(--accent);
+  }
+
+  .sync-indicator.syncing .sync-dot {
+    background: var(--amber);
+    animation: pulse 1s infinite;
+  }
+
+  .sync-indicator.error .sync-dot {
+    background: var(--red);
   }
 
   @keyframes pulse {
@@ -520,6 +555,56 @@
     .status-in, .status-out { border: 1px solid #000; background: none; color: #000; }
   }
 
+  /* Login screen */
+  .login-screen {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    background: var(--bg);
+    align-items: center;
+    justify-content: center;
+  }
+  .login-screen.active { display: flex; }
+  .login-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 40px;
+    width: 100%;
+    max-width: 380px;
+  }
+  .login-box h2 {
+    font-size: 20px;
+    font-weight: 700;
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .login-box .login-sub {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-bottom: 28px;
+  }
+  .login-box .form-group { margin-bottom: 16px; }
+  .login-error {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--red);
+    margin-bottom: 12px;
+    min-height: 18px;
+  }
+  .login-box button.primary {
+    width: 100%;
+    padding: 12px;
+    font-size: 13px;
+    margin-top: 4px;
+  }
+  .app-wrap { display: none; }
+  .app-wrap.active { display: block; }
+
   /* QR Print page */
   .qr-print-page {
     display: none;
@@ -553,15 +638,44 @@
 </head>
 <body>
 
+<!-- Login Screen -->
+<div class="login-screen active" id="loginScreen">
+  <div class="login-box">
+    <h2><div class="dot"></div> Sound Kit Tracker</h2>
+    <p class="login-sub">GAVINRAVENHILL.TV LTD. — Sign in to continue</p>
+    <div class="form-group">
+      <label>Email</label>
+      <input type="email" id="loginEmail" placeholder="you@example.com" autocomplete="email">
+    </div>
+    <div class="form-group">
+      <label>Password</label>
+      <input type="password" id="loginPassword" placeholder="••••••••" autocomplete="current-password">
+    </div>
+    <div class="login-error" id="loginError"></div>
+    <button class="primary" onclick="doLogin()">Sign In</button>
+  </div>
+</div>
+
+<!-- Main App -->
+<div class="app-wrap" id="appWrap">
+
 <div class="app-header">
-  <div class="app-title"><div class="dot"></div> Sound Kit Tracker</div>
+  <div class="app-title">
+    <div class="dot"></div> Sound Kit Tracker
+    <div class="sync-indicator" id="syncIndicator" title="Cloud sync status">
+      <div class="sync-dot"></div><span id="syncText">Connecting...</span>
+    </div>
+  </div>
   <div class="header-actions">
-    <button onclick="openScanner()">&#9655; Scan QR</button>
+    <button onclick="openScanner()">&#9655; Camera Scan</button>
+    <button onclick="openHwScanner()" title="For Eyoyo and other Bluetooth HID barcode scanners">⌨ HW Scanner</button>
     <button onclick="openAddModal()">+ Add Item</button>
     <button onclick="openPrintModal()">Print QR Labels</button>
     <button onclick="exportCSV()">Export CSV</button>
+    <button onclick="exportCheckedOutCSV()">Export Checked Out</button>
     <button onclick="openImportModal()">Import CSV</button>
     <button class="danger" onclick="resetData()">Reset</button>
+    <button onclick="doLogout()" title="Sign out">Sign Out</button>
   </div>
 </div>
 
@@ -608,8 +722,11 @@
       <tr>
         <th>QR</th>
         <th>Item</th>
+        <th>Asset Number</th>
         <th>Serial Number</th>
         <th>Category</th>
+        <th>Weight</th>
+        <th>Cost</th>
         <th>Status</th>
         <th>Last Action</th>
         <th>Notes</th>
@@ -628,11 +745,34 @@
 <!-- Scanner Overlay -->
 <div class="scanner-overlay" id="scannerOverlay">
   <div class="scanner-viewport">
-    <video id="scannerVideo" playsinline></video>
+    <video id="scannerVideo" playsinline autoplay muted></video>
     <div class="scan-line"></div>
   </div>
   <div class="scanner-status" id="scannerStatus">Initialising camera...</div>
   <button class="danger" onclick="closeScanner()">Close Scanner</button>
+</div>
+
+<!-- Hardware Scanner (Eyoyo/Bluetooth HID) Overlay -->
+<div class="scanner-overlay" id="hwScannerOverlay">
+  <div style="text-align:center;max-width:480px;padding:0 24px;">
+    <h2 style="font-size:18px;margin-bottom:8px;color:var(--accent);">Hardware Scanner Ready</h2>
+    <p style="font-family:var(--mono);font-size:12px;color:var(--text-dim);margin-bottom:20px;line-height:1.6;">
+      Scan any item barcode. App will auto check in/out on scan.<br>
+      Keep this window focused while scanning.
+    </p>
+    <input type="text" id="hwScanInput" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+           style="width:100%;padding:16px;background:var(--bg);border:2px solid var(--accent);border-radius:8px;color:var(--accent);font-family:var(--mono);font-size:14px;text-align:center;outline:none;caret-color:var(--accent);">
+    <div id="hwScanFeedback" style="min-height:80px;margin-top:16px;padding:14px;background:var(--surface);border:1px solid var(--border);border-radius:8px;font-family:var(--mono);font-size:12px;text-align:left;">
+      <span style="color:var(--text-dim);">Waiting for scan...</span>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:center;margin-top:16px;flex-wrap:wrap;">
+      <label style="font-family:var(--mono);font-size:11px;color:var(--text-dim);display:flex;align-items:center;gap:6px;cursor:pointer;">
+        <input type="checkbox" id="hwAutoToggle" checked style="accent-color:var(--accent);">
+        Auto check in/out
+      </label>
+    </div>
+    <button class="danger" style="margin-top:16px;" onclick="closeHwScanner()">Close</button>
+  </div>
 </div>
 
 <!-- Add/Edit Modal -->
@@ -644,8 +784,12 @@
       <input type="text" id="fName" placeholder="e.g. Sennheiser MKH 416">
     </div>
     <div class="form-group">
+      <label>Asset Number</label>
+      <input type="text" id="fSerial" placeholder="e.g. 33">
+    </div>
+    <div class="form-group">
       <label>Serial Number</label>
-      <input type="text" id="fSerial" placeholder="e.g. SN-2024-00145">
+      <input type="text" id="fSerialNum" placeholder="e.g. SN-2024-00145">
     </div>
     <div class="form-group">
       <label>Category</label>
@@ -662,6 +806,14 @@
         <option value="Accessory">Accessory</option>
         <option value="Other">Other</option>
       </select>
+    </div>
+    <div class="form-group">
+      <label>Weight (kg)</label>
+      <input type="text" id="fWeight" placeholder="e.g. 0.5">
+    </div>
+    <div class="form-group">
+      <label>Cost (£)</label>
+      <input type="text" id="fCost" placeholder="e.g. 300">
     </div>
     <div class="form-group">
       <label>Notes</label>
@@ -687,10 +839,13 @@
       <button onclick="selectAllPrint(false)" style="font-size:11px;">Deselect All</button>
     </div>
     <div class="print-grid" id="printGrid"></div>
-    <div class="modal-actions">
+    <div class="modal-actions" style="flex-wrap:wrap;">
       <button onclick="closePrintModal()">Cancel</button>
-      <button class="primary" onclick="printSelectedLabels()">Print Selected</button>
+      <button class="primary" onclick="saveForILabel()" title="Download one PNG per label, open in iLabel app to print to LW-C410">🖨 Save for iLabel</button>
     </div>
+    <p style="font-size:10px;color:var(--text-dim);margin-top:10px;font-family:var(--mono);line-height:1.5;">
+      <strong style="color:var(--accent);">LW-C410 workflow:</strong> click "Save for iLabel" → one PNG downloads per item → open each in the <strong style="color:var(--text);">iLabel app</strong> on Mac or iPhone → print to LW-C410 over Bluetooth.
+    </p>
   </div>
 </div>
 
@@ -738,17 +893,165 @@
 <!-- Hidden div for generating QR codes offscreen -->
 <div id="qrFactory" style="position:absolute;left:-9999px;top:-9999px;"></div>
 
+</div><!-- end app-wrap -->
+
 <script>
+  // ── Supabase Configuration ──
+  const SUPABASE_URL = 'https://hjaamieysnjlwnmdjnqa.supabase.co';
+  const SUPABASE_KEY = 'sb_publishable_Eyd_zgODX0ajr2J-PpFYsg_II3kt5VA';
+  const supa = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
   // ── State ──
+  // inventory is the local cache — used for instant rendering and offline fallback.
+  // It's populated from Supabase on load and kept in sync via realtime subscriptions.
   let inventory = JSON.parse(localStorage.getItem('soundkit_inventory') || '[]');
   let scanStream = null;
   let scanInterval = null;
   let printSelections = {};
+  let isOnline = false;
 
-  // ── Persistence ──
-  function save() {
+  // ── Sync status ──
+  function setSyncStatus(state, text) {
+    const ind = document.getElementById('syncIndicator');
+    if (!ind) return;
+    ind.className = 'sync-indicator ' + state;
+    document.getElementById('syncText').textContent = text;
+  }
+
+  // ── Persistence: write-through to Supabase, cache to localStorage ──
+  function saveCache() {
     localStorage.setItem('soundkit_inventory', JSON.stringify(inventory));
   }
+
+  // Convert app item to DB row format (snake_case columns)
+  function itemToRow(item) {
+    const row = {
+      id: item.id,
+      name: item.name,
+      serial: item.serial,
+      serial_num: item.serialNum || '',
+      category: item.category,
+      weight: item.weight || '',
+      cost: item.cost || '',
+      notes: item.notes || '',
+      status: item.status || 'in',
+      last_action: item.lastAction || null,
+      history: item.history || []
+    };
+    if (item.position != null) row.position = item.position;
+    return row;
+  }
+
+  // Convert DB row to app item format (camelCase fields)
+  function rowToItem(row) {
+    return {
+      id: row.id,
+      name: row.name,
+      serial: row.serial,
+      serialNum: row.serial_num || '',
+      category: row.category,
+      weight: row.weight || '',
+      cost: row.cost || '',
+      notes: row.notes || '',
+      status: row.status || 'in',
+      lastAction: row.last_action,
+      history: row.history || [],
+      createdAt: row.created_at,
+      position: row.position
+    };
+  }
+
+  // Upsert a single item to Supabase
+  async function dbUpsert(item) {
+    setSyncStatus('syncing', 'Saving...');
+    try {
+      const { error } = await supa.from('items').upsert(itemToRow(item));
+      if (error) throw error;
+      setSyncStatus('synced', 'Synced');
+      return true;
+    } catch (e) {
+      console.error('Upsert failed:', e);
+      setSyncStatus('error', 'Offline');
+      toast('Sync error — saved locally only', true);
+      return false;
+    }
+  }
+
+  // Delete a single item from Supabase
+  async function dbDelete(id) {
+    setSyncStatus('syncing', 'Deleting...');
+    try {
+      const { error } = await supa.from('items').delete().eq('id', id);
+      if (error) throw error;
+      setSyncStatus('synced', 'Synced');
+      return true;
+    } catch (e) {
+      console.error('Delete failed:', e);
+      setSyncStatus('error', 'Offline');
+      return false;
+    }
+  }
+
+  // Initial load from Supabase
+  async function dbLoadAll() {
+    setSyncStatus('syncing', 'Loading...');
+    try {
+      const { data, error } = await supa.from('items').select('*').order('position', { ascending: true, nullsFirst: false }).order('id', { ascending: true });
+      if (error) throw error;
+      inventory = (data || []).map(rowToItem);
+      sortInventory();
+      saveCache();
+      isOnline = true;
+      setSyncStatus('synced', 'Synced');
+      return true;
+    } catch (e) {
+      console.error('Load failed:', e);
+      isOnline = false;
+      setSyncStatus('error', 'Offline (cached)');
+      toast('Using cached data — check connection', true);
+      return false;
+    }
+  }
+
+  // Sort inventory by position — explicit order column in the database
+  // that never changes when items are edited.
+  function sortInventory() {
+    inventory.sort((a, b) => {
+      const ap = a.position ?? 999999;
+      const bp = b.position ?? 999999;
+      if (ap !== bp) return ap - bp;
+      // Tiebreaker on id for determinism
+      if (a.id < b.id) return -1;
+      if (a.id > b.id) return 1;
+      return 0;
+    });
+  }
+
+  function dbSubscribe() {
+    supa.channel('items-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'items' }, (payload) => {
+        const evt = payload.eventType;
+        if (evt === 'INSERT' || evt === 'UPDATE') {
+          const newItem = rowToItem(payload.new);
+          const idx = inventory.findIndex(i => i.id === newItem.id);
+          if (idx >= 0) {
+            inventory[idx] = newItem;
+          } else {
+            inventory.push(newItem);
+            sortInventory();
+          }
+        } else if (evt === 'DELETE') {
+          inventory = inventory.filter(i => i.id !== payload.old.id);
+        }
+        saveCache();
+        render();
+      })
+      .subscribe();
+  }
+
+  // Legacy save() wrapper — kept so existing code paths still work
+  // Most call sites now call dbUpsert directly for a specific item
+  function save() { saveCache(); }
 
   // ── IDs ──
   function genId() {
@@ -827,7 +1130,10 @@
         <td><img class="qr-thumb" src="${qrUrl}" onclick="showQrDetail('${item.id}')" title="Click to enlarge"></td>
         <td class="item-name">${esc(item.name)}</td>
         <td class="serial">${esc(item.serial)}</td>
+        <td class="serial">${esc(item.serialNum || '—')}</td>
         <td><span class="category-tag">${esc(item.category)}</span></td>
+        <td class="serial">${item.weight ? esc(item.weight) + ' kg' : '—'}</td>
+        <td class="serial">${item.cost ? '£' + esc(item.cost) : '—'}</td>
         <td><span class="status-badge ${statusClass}">${statusLabel}</span></td>
         <td class="timestamp">${ts}</td>
         <td class="notes-cell" title="${esc(item.notes || '')}">${esc(item.notes || '—')}</td>
@@ -853,7 +1159,10 @@
       document.getElementById('modalTitle').textContent = 'Add New Item';
       document.getElementById('fName').value = '';
       document.getElementById('fSerial').value = '';
+      document.getElementById('fSerialNum').value = '';
       document.getElementById('fCategory').value = 'Microphone';
+      document.getElementById('fWeight').value = '';
+      document.getElementById('fCost').value = '';
       document.getElementById('fNotes').value = '';
       document.getElementById('fEditId').value = '';
     }
@@ -864,43 +1173,57 @@
     document.getElementById('addModal').classList.remove('active');
   }
 
-  function saveItem() {
+  async function saveItem() {
     const name = document.getElementById('fName').value.trim();
     const serial = document.getElementById('fSerial').value.trim();
+    const serialNum = document.getElementById('fSerialNum').value.trim();
     const category = document.getElementById('fCategory').value;
+    const weight = document.getElementById('fWeight').value.trim();
+    const cost = document.getElementById('fCost').value.trim();
     const notes = document.getElementById('fNotes').value.trim();
     const editId = document.getElementById('fEditId').value;
 
     if (!name || !serial) {
-      toast('Name and serial are required', true);
+      toast('Name and asset number are required', true);
       return;
     }
 
+    let item;
     if (editId) {
-      const item = inventory.find(i => i.id === editId);
+      item = inventory.find(i => i.id === editId);
       if (item) {
         item.name = name;
         item.serial = serial;
+        item.serialNum = serialNum;
         item.category = category;
+        item.weight = weight;
+        item.cost = cost;
         item.notes = notes;
       }
     } else {
-      inventory.push({
+      const maxPos = inventory.reduce((m, i) => Math.max(m, i.position ?? 0), 0);
+      item = {
         id: genId(),
         name,
         serial,
+        serialNum,
         category,
+        weight,
+        cost,
         notes,
         status: 'in',
         lastAction: null,
-        history: []
-      });
+        history: [],
+        position: maxPos + 1
+      };
+      inventory.push(item);
     }
 
-    save();
+    saveCache();
     render();
     closeAddModal();
     toast(editId ? 'Item updated' : 'Item added');
+    if (item) await dbUpsert(item);
   }
 
   function editItem(id) {
@@ -909,28 +1232,32 @@
     document.getElementById('modalTitle').textContent = 'Edit Item';
     document.getElementById('fName').value = item.name;
     document.getElementById('fSerial').value = item.serial;
+    document.getElementById('fSerialNum').value = item.serialNum || '';
     document.getElementById('fCategory').value = item.category;
+    document.getElementById('fWeight').value = item.weight || '';
+    document.getElementById('fCost').value = item.cost || '';
     document.getElementById('fNotes').value = item.notes || '';
     document.getElementById('fEditId').value = id;
     document.getElementById('addModal').classList.add('active');
   }
 
-  function deleteItem(id) {
+  async function deleteItem(id) {
     if (!confirm('Delete this item?')) return;
     inventory = inventory.filter(i => i.id !== id);
-    save();
+    saveCache();
     render();
     toast('Item deleted');
+    await dbDelete(id);
   }
 
-  function toggleStatus(id) {
+  async function toggleStatus(id) {
     const item = inventory.find(i => i.id === id);
     if (!item) return;
     const newStatus = item.status === 'in' ? 'out' : 'in';
     item.history.push({ from: item.status, to: newStatus, at: new Date().toISOString() });
     item.status = newStatus;
     item.lastAction = new Date().toISOString();
-    save();
+    saveCache();
     render();
     toast(newStatus === 'out' ? `${item.name} checked OUT` : `${item.name} checked IN`);
     // Flash the row
@@ -939,6 +1266,7 @@
       row.classList.add('just-scanned');
       setTimeout(() => row.classList.remove('just-scanned'), 1500);
     }
+    await dbUpsert(item);
   }
 
   // ── QR Scanner ──
@@ -948,12 +1276,18 @@
     const video = document.getElementById('scannerVideo');
     const status = document.getElementById('scannerStatus');
 
-    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+    navigator.mediaDevices.getUserMedia({
+      video: {
+        facingMode: 'environment',
+        width: { ideal: 1280 },
+        height: { ideal: 720 }
+      }
+    })
       .then(stream => {
         scanStream = stream;
         video.srcObject = stream;
         video.play();
-        status.textContent = 'Scanning... point at a QR code';
+        status.textContent = 'Scanning... hold steady over QR code';
         startScanning(video);
       })
       .catch(err => {
@@ -968,39 +1302,172 @@
   }
 
   function startScanning(video) {
-    // Use BarcodeDetector if available, otherwise fall back to manual
-    if ('BarcodeDetector' in window) {
-      const detector = new BarcodeDetector({ formats: ['qr_code'] });
-      scanInterval = setInterval(async () => {
-        try {
-          const barcodes = await detector.detect(video);
-          if (barcodes.length > 0) {
-            const val = barcodes[0].rawValue;
-            clearInterval(scanInterval);
+    // Prefer jsQR (works on all iOS Safari versions). Fall back to BarcodeDetector
+    // only if jsQR isn't loaded for some reason.
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+
+    const tick = () => {
+      if (!scanStream) return; // scanner closed
+      if (video.readyState !== video.HAVE_ENOUGH_DATA) {
+        scanInterval = requestAnimationFrame(tick);
+        return;
+      }
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      try {
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        if (typeof jsQR === 'function') {
+          const code = jsQR(imageData.data, imageData.width, imageData.height, {
+            inversionAttempts: 'attemptBoth'
+          });
+          if (code && code.data) {
+            cancelAnimationFrame(scanInterval);
+            scanInterval = null;
             closeScanner();
-            handleScan(val);
+            handleScan(code.data);
+            return;
           }
-        } catch(e) {}
-      }, 300);
-    } else {
+        }
+      } catch (e) { /* keep scanning */ }
+
+      scanInterval = requestAnimationFrame(tick);
+    };
+
+    if (typeof jsQR !== 'function') {
       document.getElementById('scannerStatus').textContent =
-        'QR detection not supported in this browser. Use Chrome on Android, or enter ID manually.';
-      // Add manual fallback button
+        'QR library failed to load. Check your internet connection.';
       setTimeout(() => {
         const code = prompt('Enter QR code / Item ID manually:');
         if (code) handleScan(code.trim());
         closeScanner();
-      }, 2000);
+      }, 1500);
+      return;
     }
+
+    scanInterval = requestAnimationFrame(tick);
   }
 
   function closeScanner() {
-    if (scanInterval) clearInterval(scanInterval);
+    if (scanInterval) {
+      cancelAnimationFrame(scanInterval);
+      clearInterval(scanInterval);
+      scanInterval = null;
+    }
     if (scanStream) {
       scanStream.getTracks().forEach(t => t.stop());
       scanStream = null;
     }
     document.getElementById('scannerOverlay').classList.remove('active');
+  }
+
+  // ── Hardware Scanner (Eyoyo / Bluetooth HID) ──
+  // Eyoyo scanners present as a Bluetooth HID keyboard. They "type" the
+  // decoded barcode content into the focused input and press Enter.
+  // We capture that via a focused text input and process on Enter.
+  let hwScanHistory = [];
+
+  function openHwScanner() {
+    const overlay = document.getElementById('hwScannerOverlay');
+    overlay.classList.add('active');
+    const input = document.getElementById('hwScanInput');
+    input.value = '';
+    // Focus with a slight delay so iOS Safari reliably picks it up
+    setTimeout(() => input.focus(), 100);
+
+    // Re-focus if user taps elsewhere accidentally
+    input.addEventListener('blur', () => {
+      if (document.getElementById('hwScannerOverlay').classList.contains('active')) {
+        setTimeout(() => input.focus(), 50);
+      }
+    });
+
+    // Process scan on Enter key
+    input.onkeydown = (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const scanned = input.value.trim();
+        input.value = '';
+        if (scanned) processHwScan(scanned);
+      }
+    };
+  }
+
+  function closeHwScanner() {
+    const overlay = document.getElementById('hwScannerOverlay');
+    overlay.classList.remove('active');
+    const input = document.getElementById('hwScanInput');
+    input.onkeydown = null;
+    input.blur();
+  }
+
+  async function processHwScan(scanned) {
+    const feedback = document.getElementById('hwScanFeedback');
+    const autoToggle = document.getElementById('hwAutoToggle').checked;
+
+    // Try to find item by exact ID match first, then fall back to serial match
+    let item = inventory.find(i => i.id === scanned);
+    if (!item) item = inventory.find(i => i.serial === scanned);
+
+    if (!item) {
+      feedback.innerHTML = `<div style="color:var(--red);">
+        <strong>✗ Not found:</strong> ${esc(scanned)}
+      </div>`;
+      // Beep via audio context (quick error tone)
+      playBeep(220, 0.15);
+      hwScanHistory.unshift({ time: Date.now(), result: 'not_found', value: scanned });
+      return;
+    }
+
+    // Found — display item info
+    const statusBefore = item.status === 'in' ? 'IN STORE' : 'CHECKED OUT';
+    const statusColor = item.status === 'in' ? 'var(--accent)' : 'var(--red)';
+
+    if (autoToggle) {
+      // Auto-toggle on scan
+      await toggleStatus(item.id);
+      const statusAfter = item.status === 'in' ? 'IN STORE' : 'CHECKED OUT';
+      const afterColor = item.status === 'in' ? 'var(--accent)' : 'var(--red)';
+      feedback.innerHTML = `<div style="color:var(--accent);margin-bottom:4px;">
+        <strong>✓ ${esc(item.name)}</strong>
+      </div>
+      <div style="color:var(--text-dim);font-size:11px;">
+        Serial: ${esc(item.serial)}<br>
+        Status: <span style="color:${afterColor};">${statusAfter}</span>
+        (was ${statusBefore})
+      </div>`;
+      playBeep(880, 0.08);
+      hwScanHistory.unshift({ time: Date.now(), result: 'toggled', item: item.name });
+    } else {
+      // Just show info, don't toggle
+      feedback.innerHTML = `<div style="color:var(--accent);margin-bottom:4px;">
+        <strong>✓ ${esc(item.name)}</strong>
+      </div>
+      <div style="color:var(--text-dim);font-size:11px;">
+        Serial: ${esc(item.serial)}<br>
+        Status: <span style="color:${statusColor};">${statusBefore}</span>
+      </div>`;
+      playBeep(660, 0.08);
+    }
+  }
+
+  // Simple beep using Web Audio API for scan confirmation sounds
+  function playBeep(freq, duration) {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.frequency.value = freq;
+      osc.type = 'sine';
+      gain.gain.setValueAtTime(0.15, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + duration);
+    } catch (e) { /* ignore audio errors */ }
   }
 
   function handleScan(value) {
@@ -1141,19 +1608,255 @@
     closePrintModal();
   }
 
+  // ── Print direct to Epson LW-C410 (12mm tape, QR only) ──
+  // Opens a print window sized for 12mm tape.
+  // In the macOS print dialog: choose LW-C410, paper = 12mm tape, no margins.
+  // Each label is a square QR code that fits snugly on 12mm tape width.
+  function printLWC410() {
+    const selected = inventory.filter(i => printSelections[i.id]);
+    if (selected.length === 0) {
+      toast('No items selected', true);
+      return;
+    }
+
+    // 12mm tape at 180dpi ≈ 85px usable width.
+    // We render at 4× (340px) for crispness then let CSS scale down.
+    // Label length auto-sizes to content — just the QR square.
+    const QR_PX = 340; // canvas render size (4× for print sharpness)
+
+    // Build all QR data URLs first
+    const labels = selected.map(item => ({
+      item,
+      qrUrl: generateQRDataURL(item.id, QR_PX)
+    }));
+
+    const printWin = window.open('', '_blank');
+    printWin.document.write(`<!DOCTYPE html>
+<html>
+<head>
+<title>LW-C410 Labels</title>
+<style>
+  /* 12mm tape: set page size to 12mm height, auto width.
+     In the print dialog choose the LW-C410 and 12mm tape. */
+  @page {
+    size: auto;
+    margin: 0;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #fff;
+    /* Flow labels horizontally for tape printers */
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: flex-start;
+    gap: 0;
+  }
+  .lw-label {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    /* 12mm tape usable height ~10mm, convert to pt: 10mm = 28.35pt */
+    width: 28.35pt;
+    height: 28.35pt;
+    page-break-after: always;
+    padding: 0;
+  }
+  .lw-label img {
+    width: 28.35pt;
+    height: 28.35pt;
+    display: block;
+    image-rendering: crisp-edges;
+    image-rendering: pixelated;
+  }
+  @media print {
+    body { background: #fff; }
+  }
+</style>
+</head>
+<body>`);
+
+    labels.forEach(({ item, qrUrl }) => {
+      printWin.document.write(
+        `<div class="lw-label" title="${item.name} | ${item.serial}">` +
+        `<img src="${qrUrl}" alt="${item.id}">` +
+        `</div>`
+      );
+    });
+
+    printWin.document.write(`
+<script>
+  window.onload = function() {
+    setTimeout(function() { window.print(); }, 400);
+  };
+<\/script>
+</body></html>`);
+    printWin.document.close();
+    closePrintModal();
+    toast(`Opening ${selected.length} label${selected.length > 1 ? 's' : ''} — select LW-C410 + 12mm tape`);
+  }
+
+  // ── Save for iLabel (LW-C410 workflow) ──
+  // Downloads one PNG per selected item. Open each in iLabel on Mac/iPhone
+  // and print directly to the LW-C410 over Bluetooth.
+  async function saveForILabel() {
+    const selected = inventory.filter(i => printSelections[i.id]);
+    if (selected.length === 0) {
+      toast('No items selected', true);
+      return;
+    }
+
+    toast(`Saving ${selected.length} label${selected.length > 1 ? 's' : ''}...`);
+
+    for (let i = 0; i < selected.length; i++) {
+      const item = selected[i];
+      const blob = await buildLabelPNG(item);
+      const filename = sanitiseFilename((i + 1).toString().padStart(2, '0') + '-' + item.name + '-' + item.serial) + '.png';
+      triggerDownload(blob, filename);
+      if (i < selected.length - 1) await new Promise(r => setTimeout(r, 300));
+    }
+
+    toast(`${selected.length} PNG${selected.length > 1 ? 's' : ''} saved — open in iLabel to print`);
+    closePrintModal();
+  }
+
+  // Build a single label PNG: QR only, square, optimised for LW-C410 12mm tape
+  function buildLabelPNG(item) {
+    return new Promise((resolve) => {
+      const canvas = document.createElement('canvas');
+      canvas.width = 400;
+      canvas.height = 400;
+      const ctx = canvas.getContext('2d');
+
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      const qrUrl = generateQRDataURL(item.id, 380);
+      const img = new Image();
+      img.onload = () => {
+        ctx.drawImage(img, 10, 10, 380, 380);
+        canvas.toBlob(blob => resolve(blob), 'image/png');
+      };
+      img.src = qrUrl;
+    });
+  }
+
+  // Build one combined PNG with a grid of all selected labels
+  function buildCombinedSheet(items) {
+    return new Promise(async (resolve) => {
+      const cellW = 400;
+      const cellH = 500;
+      const cols = Math.min(items.length, 3);
+      const rows = Math.ceil(items.length / cols);
+      const padding = 20;
+
+      const canvas = document.createElement('canvas');
+      canvas.width = cols * cellW + (cols + 1) * padding;
+      canvas.height = rows * cellH + (rows + 1) * padding + 60;
+      const ctx = canvas.getContext('2d');
+
+      // White background
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // Header
+      ctx.fillStyle = '#000000';
+      ctx.font = 'bold 28px Arial, sans-serif';
+      ctx.textAlign = 'left';
+      ctx.fillText('Sound Kit QR Labels — ' + new Date().toLocaleDateString('en-GB'), padding, 40);
+      ctx.font = '16px Arial, sans-serif';
+      ctx.fillStyle = '#666666';
+      ctx.fillText(items.length + ' items', padding, 62);
+
+      // Pre-generate all QR codes
+      const qrs = items.map(item => ({
+        item,
+        url: generateQRDataURL(item.id, 320)
+      }));
+
+      // Load all images then draw
+      const imgs = await Promise.all(qrs.map(q => new Promise(r => {
+        const i = new Image();
+        i.onload = () => r(i);
+        i.src = q.url;
+      })));
+
+      imgs.forEach((img, idx) => {
+        const col = idx % cols;
+        const row = Math.floor(idx / cols);
+        const x = padding + col * (cellW + padding);
+        const y = 80 + padding + row * (cellH + padding);
+
+        // Cell border (dashed visual guide for cutting)
+        ctx.strokeStyle = '#cccccc';
+        ctx.setLineDash([8, 6]);
+        ctx.lineWidth = 2;
+        ctx.strokeRect(x, y, cellW, cellH);
+        ctx.setLineDash([]);
+
+        // QR code
+        ctx.drawImage(img, x + 40, y + 20, 320, 320);
+
+        // Item name
+        ctx.fillStyle = '#000000';
+        ctx.font = 'bold 26px Arial, sans-serif';
+        ctx.textAlign = 'center';
+        const item = qrs[idx].item;
+        const name = item.name.length > 26 ? item.name.substring(0, 24) + '…' : item.name;
+        ctx.fillText(name, x + cellW / 2, y + 390);
+
+        // Serial
+        ctx.font = '22px monospace';
+        ctx.fillStyle = '#333333';
+        ctx.fillText('SN: ' + item.serial, x + cellW / 2, y + 425);
+
+        // Item ID
+        ctx.font = '14px monospace';
+        ctx.fillStyle = '#888888';
+        ctx.fillText(item.id, x + cellW / 2, y + 455);
+
+        // Category tag
+        ctx.font = '14px Arial, sans-serif';
+        ctx.fillStyle = '#666666';
+        ctx.fillText('[' + item.category + ']', x + cellW / 2, y + 480);
+      });
+
+      canvas.toBlob(blob => resolve(blob), 'image/png');
+    });
+  }
+
+  function triggerDownload(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  function sanitiseFilename(name) {
+    return name.replace(/[^a-z0-9-_]/gi, '_').substring(0, 50);
+  }
+
   // ── CSV Export ──
   function exportCSV() {
     if (inventory.length === 0) {
       toast('Nothing to export', true);
       return;
     }
-    const rows = [['ID', 'Name', 'Serial', 'Category', 'Status', 'Last Action', 'Notes']];
+    const rows = [['ID', 'Name', 'Asset Number', 'Serial Number', 'Category', 'Weight (kg)', 'Cost (£)', 'Status', 'Last Action', 'Notes']];
     inventory.forEach(item => {
       rows.push([
         item.id,
         item.name,
         item.serial,
+        item.serialNum || '',
         item.category,
+        item.weight || '',
+        item.cost || '',
         item.status === 'in' ? 'IN' : 'OUT',
         item.lastAction || '',
         item.notes || ''
@@ -1169,6 +1872,38 @@
     a.click();
     URL.revokeObjectURL(url);
     toast('CSV exported');
+  }
+
+  // ── CSV Export: Checked Out Only ──
+  function exportCheckedOutCSV() {
+    const checkedOut = inventory.filter(i => i.status === 'out');
+    if (checkedOut.length === 0) {
+      toast('No items currently checked out', true);
+      return;
+    }
+    const rows = [['ID', 'Name', 'Asset Number', 'Serial Number', 'Category', 'Weight (kg)', 'Cost (£)', 'Last Action', 'Notes']];
+    checkedOut.forEach(item => {
+      rows.push([
+        item.id,
+        item.name,
+        item.serial,
+        item.serialNum || '',
+        item.category,
+        item.weight || '',
+        item.cost || '',
+        item.lastAction || '',
+        item.notes || ''
+      ]);
+    });
+    const csv = rows.map(r => r.map(c => '"' + String(c).replace(/"/g, '""') + '"').join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'checked-out-' + new Date().toISOString().slice(0,10) + '.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+    toast(`Exported ${checkedOut.length} checked out items`);
   }
 
   // ── CSV Import ──
@@ -1189,7 +1924,7 @@
     }
 
     const reader = new FileReader();
-    reader.onload = function(e) {
+    reader.onload = async function(e) {
       const text = e.target.result;
       const lines = text.split('\n').map(l => l.trim()).filter(l => l);
       if (lines.length < 2) {
@@ -1198,11 +1933,11 @@
       }
 
       // Skip header row
-      let imported = 0;
+      const newItems = [];
       for (let i = 1; i < lines.length; i++) {
         const cols = parseCSVLine(lines[i]);
         if (cols.length >= 2) {
-          inventory.push({
+          const item = {
             id: genId(),
             name: cols[0] || 'Unknown',
             serial: cols[1] || 'N/A',
@@ -1211,14 +1946,31 @@
             status: 'in',
             lastAction: null,
             history: []
-          });
-          imported++;
+          };
+          inventory.push(item);
+          newItems.push(item);
         }
       }
-      save();
+      saveCache();
       render();
       closeImportModal();
-      toast(`Imported ${imported} items`);
+      toast(`Imported ${newItems.length} items — syncing...`);
+
+      // Bulk push to Supabase
+      if (newItems.length > 0) {
+        setSyncStatus('syncing', 'Syncing import...');
+        try {
+          const rows = newItems.map(itemToRow);
+          const { error } = await supa.from('items').upsert(rows);
+          if (error) throw error;
+          setSyncStatus('synced', 'Synced');
+          toast(`${newItems.length} items synced to cloud`);
+        } catch (err) {
+          console.error('Import sync failed:', err);
+          setSyncStatus('error', 'Sync failed');
+          toast('Items imported locally but sync failed', true);
+        }
+      }
     };
     reader.readAsText(file);
   }
@@ -1252,18 +2004,25 @@
   }
 
   // ── Reset ──
-  function resetData() {
-    if (!confirm('This will DELETE all inventory data and reload the seed kit list. Are you sure?')) return;
+  async function resetData() {
+    if (!confirm('This will DELETE all inventory data (on ALL synced devices) and reload the seed kit list. Are you sure?')) return;
+    setSyncStatus('syncing', 'Resetting...');
+    try {
+      // Wipe the cloud table
+      await supa.from('items').delete().neq('id', '__nothing__');
+    } catch (e) {
+      console.error('Cloud wipe failed:', e);
+    }
     localStorage.removeItem('soundkit_inventory');
     inventory = [];
-    seedIfEmpty();
+    await seedIfEmpty(true);
     render();
-    toast('Data reset to seed kit list');
+    toast('Data reset and synced to cloud');
   }
 
   // ── Seed Data (Ring 4 Saudi Kit) ──
-  function seedIfEmpty() {
-    if (inventory.length > 0) return;
+  async function seedIfEmpty(forceCloud) {
+    if (inventory.length > 0 && !forceCloud) return;
     const seedItems = [
       {name:"Sennheiser 418",serial:"33",category:"Microphone",notes:"Use: Main FX | Owner: Supercoms | Value: £300"},
       {name:"Sennheiser 416",serial:"34",category:"Microphone",notes:"Use: Red Corner | Owner: Supercoms | Value: £300"},
@@ -1346,12 +2105,86 @@
         history: []
       });
     });
-    save();
+    saveCache();
+
+    // Push the whole seed batch to Supabase in one bulk upsert
+    if (forceCloud || isOnline) {
+      setSyncStatus('syncing', 'Seeding cloud...');
+      try {
+        const rows = inventory.map(itemToRow);
+        const { error } = await supa.from('items').upsert(rows);
+        if (error) throw error;
+        setSyncStatus('synced', 'Synced');
+      } catch (e) {
+        console.error('Seed push failed:', e);
+        setSyncStatus('error', 'Offline');
+      }
+    }
   }
 
   // ── Init ──
-  seedIfEmpty();
-  render();
+  // ── Auth ──
+  function showApp() {
+    document.getElementById('loginScreen').classList.remove('active');
+    document.getElementById('appWrap').classList.add('active');
+  }
+
+  function showLogin(msg) {
+    document.getElementById('appWrap').classList.remove('active');
+    document.getElementById('loginScreen').classList.add('active');
+    if (msg) document.getElementById('loginError').textContent = msg;
+  }
+
+  async function doLogin() {
+    const email = document.getElementById('loginEmail').value.trim();
+    const password = document.getElementById('loginPassword').value;
+    const errEl = document.getElementById('loginError');
+    errEl.textContent = '';
+    if (!email || !password) { errEl.textContent = 'Enter email and password'; return; }
+    const { error } = await supa.auth.signInWithPassword({ email, password });
+    if (error) { errEl.textContent = error.message; return; }
+    showApp();
+    await init();
+  }
+
+  async function doLogout() {
+    await supa.auth.signOut();
+    inventory = [];
+    showLogin();
+  }
+
+  // Allow Enter key on login form
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && document.getElementById('loginScreen').classList.contains('active')) {
+      doLogin();
+    }
+  });
+
+  async function init() {
+    // Render cached data immediately for fast perceived load
+    render();
+
+    // Then pull fresh from Supabase
+    const loaded = await dbLoadAll();
+
+    if (loaded && inventory.length === 0) {
+      // Cloud is empty — seed it with Ring 4 Saudi kit
+      await seedIfEmpty(true);
+    }
+
+    render();
+    dbSubscribe();
+  }
+
+  // ── Boot: check for existing session ──
+  (async () => {
+    const { data: { session } } = await supa.auth.getSession();
+    if (session) {
+      showApp();
+      await init();
+    }
+    // Otherwise login screen stays visible
+  })();
 </script>
 </body>
 </html>
