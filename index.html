@@ -1123,8 +1123,8 @@
     tbody.innerHTML = filtered.map(item => {
       const qrUrl = generateQRDataURL(item.id, 40);
       const statusClass = item.status === 'in' ? 'status-in' : 'status-out';
-      const statusLabel = item.status === 'in' ? 'IN STORE' : 'CHECKED OUT';
-      const toggleLabel = item.status === 'in' ? 'Check Out' : 'Check In';
+      const statusLabel = item.status === 'in' ? 'IN' : 'OUT';
+      const toggleLabel = item.status === 'in' ? 'Out' : 'In';
       const ts = item.lastAction ? new Date(item.lastAction).toLocaleString('en-GB', {day:'2-digit',month:'short',year:'2-digit',hour:'2-digit',minute:'2-digit'}) : '—';
       return `<tr id="row-${item.id}">
         <td><img class="qr-thumb" src="${qrUrl}" onclick="showQrDetail('${item.id}')" title="Click to enlarge"></td>
