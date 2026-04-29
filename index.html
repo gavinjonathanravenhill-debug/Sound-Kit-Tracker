@@ -722,6 +722,7 @@
       <tr>
         <th>QR</th>
         <th>Item</th>
+        <th>Model</th>
         <th>Asset Number</th>
         <th>Serial Number</th>
         <th>Category</th>
@@ -781,7 +782,11 @@
     <h3 id="modalTitle">Add New Item</h3>
     <div class="form-group">
       <label>Item Name</label>
-      <input type="text" id="fName" placeholder="e.g. Sennheiser MKH 416">
+      <input type="text" id="fName" placeholder="e.g. Sennheiser">
+    </div>
+    <div class="form-group">
+      <label>Model</label>
+      <input type="text" id="fModel" placeholder="e.g. MKH 416">
     </div>
     <div class="form-group">
       <label>Asset Number</label>
@@ -928,6 +933,7 @@
     const row = {
       id: item.id,
       name: item.name,
+      model: item.model || '',
       serial: item.serial,
       serial_num: item.serialNum || '',
       category: item.category,
@@ -947,6 +953,7 @@
     return {
       id: row.id,
       name: row.name,
+      model: row.model || '',
       serial: row.serial,
       serialNum: row.serial_num || '',
       category: row.category,
@@ -1129,6 +1136,7 @@
       return `<tr id="row-${item.id}">
         <td><img class="qr-thumb" src="${qrUrl}" onclick="showQrDetail('${item.id}')" title="Click to enlarge"></td>
         <td class="item-name">${esc(item.name)}</td>
+        <td class="serial">${esc(item.model || '—')}</td>
         <td class="serial">${esc(item.serial)}</td>
         <td class="serial">${esc(item.serialNum || '—')}</td>
         <td><span class="category-tag">${esc(item.category)}</span></td>
@@ -1158,6 +1166,7 @@
     if (!editId) {
       document.getElementById('modalTitle').textContent = 'Add New Item';
       document.getElementById('fName').value = '';
+      document.getElementById('fModel').value = '';
       document.getElementById('fSerial').value = '';
       document.getElementById('fSerialNum').value = '';
       document.getElementById('fCategory').value = 'Microphone';
@@ -1175,6 +1184,7 @@
 
   async function saveItem() {
     const name = document.getElementById('fName').value.trim();
+    const model = document.getElementById('fModel').value.trim();
     const serial = document.getElementById('fSerial').value.trim();
     const serialNum = document.getElementById('fSerialNum').value.trim();
     const category = document.getElementById('fCategory').value;
@@ -1193,6 +1203,7 @@
       item = inventory.find(i => i.id === editId);
       if (item) {
         item.name = name;
+        item.model = model;
         item.serial = serial;
         item.serialNum = serialNum;
         item.category = category;
@@ -1205,6 +1216,7 @@
       item = {
         id: genId(),
         name,
+        model,
         serial,
         serialNum,
         category,
@@ -1231,6 +1243,7 @@
     if (!item) return;
     document.getElementById('modalTitle').textContent = 'Edit Item';
     document.getElementById('fName').value = item.name;
+    document.getElementById('fModel').value = item.model || '';
     document.getElementById('fSerial').value = item.serial;
     document.getElementById('fSerialNum').value = item.serialNum || '';
     document.getElementById('fCategory').value = item.category;
@@ -1847,11 +1860,12 @@
       toast('Nothing to export', true);
       return;
     }
-    const rows = [['ID', 'Name', 'Asset Number', 'Serial Number', 'Category', 'Weight (kg)', 'Cost (£)', 'Status', 'Last Action', 'Notes']];
+    const rows = [['ID', 'Name', 'Model', 'Asset Number', 'Serial Number', 'Category', 'Weight (kg)', 'Cost (£)', 'Status', 'Last Action', 'Notes']];
     inventory.forEach(item => {
       rows.push([
         item.id,
         item.name,
+        item.model || '',
         item.serial,
         item.serialNum || '',
         item.category,
@@ -1881,11 +1895,12 @@
       toast('No items currently checked out', true);
       return;
     }
-    const rows = [['ID', 'Name', 'Asset Number', 'Serial Number', 'Category', 'Weight (kg)', 'Cost (£)', 'Last Action', 'Notes']];
+    const rows = [['ID', 'Name', 'Model', 'Asset Number', 'Serial Number', 'Category', 'Weight (kg)', 'Cost (£)', 'Last Action', 'Notes']];
     checkedOut.forEach(item => {
       rows.push([
         item.id,
         item.name,
+        item.model || '',
         item.serial,
         item.serialNum || '',
         item.category,
