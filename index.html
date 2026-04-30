@@ -781,6 +781,20 @@
   <div class="modal">
     <h3 id="modalTitle">Add New Item</h3>
     <div class="form-group">
+      <label>Section</label>
+      <select id="fSection" onchange="toggleRentalQR()">
+        <option value="inhouse">In-house</option>
+        <option value="rental">Rental</option>
+      </select>
+    </div>
+    <div class="form-group" id="rentalQRGroup" style="display:none;">
+      <label>Hire Company QR / ID <span style="font-size:10px;color:var(--text-dim);">(scan or type manually)</span></label>
+      <div style="display:flex;gap:8px;">
+        <input type="text" id="fRentalId" placeholder="e.g. HIRECO-00123" style="flex:1;">
+        <button type="button" onclick="scanRentalQR()" style="white-space:nowrap;">📷 Scan</button>
+      </div>
+    </div>
+    <div class="form-group">
       <label>Item Name</label>
       <input type="text" id="fName" placeholder="e.g. Sennheiser">
     </div>
@@ -933,6 +947,7 @@
     const row = {
       id: item.id,
       name: item.name,
+      section: item.section || 'inhouse',
       model: item.model || '',
       serial: item.serial,
       serial_num: item.serialNum || '',
@@ -953,6 +968,7 @@
     return {
       id: row.id,
       name: row.name,
+      section: row.section || 'inhouse',
       model: row.model || '',
       serial: row.serial,
       serialNum: row.serial_num || '',
@@ -1127,14 +1143,21 @@
     const showingAll = filtered.length === inventory.length;
     document.getElementById('filterCount').textContent = showingAll ? '' : `Showing ${filtered.length} of ${inventory.length}`;
 
-    tbody.innerHTML = filtered.map(item => {
+    const inhouse = filtered.filter(i => (i.section || 'inhouse') === 'inhouse');
+    const rental = filtered.filter(i => i.section === 'rental');
+
+    const renderRow = (item) => {
+      const isRental = item.section === 'rental';
       const qrUrl = generateQRDataURL(item.id, 40);
       const statusClass = item.status === 'in' ? 'status-in' : 'status-out';
       const statusLabel = item.status === 'in' ? 'IN' : 'OUT';
       const toggleLabel = item.status === 'in' ? 'Out' : 'In';
       const ts = item.lastAction ? new Date(item.lastAction).toLocaleString('en-GB', {day:'2-digit',month:'short',year:'2-digit',hour:'2-digit',minute:'2-digit'}) : '—';
+      const qrCell = isRental
+        ? `<td title="Hire company QR: ${esc(item.id)}"><img class="qr-thumb" src="${qrUrl}" onclick="showQrDetail('${item.id}')" title="Hire QR — click to enlarge" style="opacity:0.6;"></td>`
+        : `<td><img class="qr-thumb" src="${qrUrl}" onclick="showQrDetail('${item.id}')" title="Click to enlarge"></td>`;
       return `<tr id="row-${item.id}">
-        <td><img class="qr-thumb" src="${qrUrl}" onclick="showQrDetail('${item.id}')" title="Click to enlarge"></td>
+        ${qrCell}
         <td class="item-name">${esc(item.name)}</td>
         <td class="serial">${esc(item.model || '—')}</td>
         <td class="serial">${esc(item.serial)}</td>
@@ -1151,13 +1174,41 @@
           <button class="danger" onclick="deleteItem('${item.id}')">Del</button>
         </div></td>
       </tr>`;
-    }).join('');
-  }
+    };
+
+    const sectionHeader = (label, count, color) =>
+      `<tr><td colspan="12" style="background:var(--surface);padding:10px 16px;font-family:var(--mono);font-size:11px;font-weight:700;color:${color};letter-spacing:0.08em;border-bottom:1px solid var(--border);">
+        ${label} <span style="opacity:0.5;font-weight:400;">(${count})</span>
+      </td></tr>`;
+
+    let html = '';
+    if (inhouse.length > 0) {
+      html += sectionHeader('▸ IN-HOUSE', inhouse.length, 'var(--accent)');
+      html += inhouse.map(renderRow).join('');
+    }
+    if (rental.length > 0) {
+      html += sectionHeader('▸ RENTAL', rental.length, '#a78bfa');
+      html += rental.map(renderRow).join('');
+    }
+
+    tbody.innerHTML = html;
 
   function esc(s) {
     const d = document.createElement('div');
     d.textContent = s;
     return d.innerHTML;
+  }
+
+  // ── Rental QR helpers ──
+  function toggleRentalQR() {
+    const isRental = document.getElementById('fSection').value === 'rental';
+    document.getElementById('rentalQRGroup').style.display = isRental ? '' : 'none';
+  }
+
+  function scanRentalQR() {
+    // Open a quick scan modal to capture hire company QR into the rental ID field
+    const code = prompt('Scan or type hire company QR / ID:');
+    if (code) document.getElementById('fRentalId').value = code.trim();
   }
 
   // ── CRUD ──
@@ -1166,6 +1217,9 @@
     if (!editId) {
       document.getElementById('modalTitle').textContent = 'Add New Item';
       document.getElementById('fName').value = '';
+      document.getElementById('fSection').value = 'inhouse';
+      document.getElementById('fRentalId').value = '';
+      toggleRentalQR();
       document.getElementById('fModel').value = '';
       document.getElementById('fSerial').value = '';
       document.getElementById('fSerialNum').value = '';
@@ -1184,6 +1238,8 @@
 
   async function saveItem() {
     const name = document.getElementById('fName').value.trim();
+    const section = document.getElementById('fSection').value;
+    const rentalId = document.getElementById('fRentalId').value.trim();
     const model = document.getElementById('fModel').value.trim();
     const serial = document.getElementById('fSerial').value.trim();
     const serialNum = document.getElementById('fSerialNum').value.trim();
@@ -1203,6 +1259,7 @@
       item = inventory.find(i => i.id === editId);
       if (item) {
         item.name = name;
+        item.section = section;
         item.model = model;
         item.serial = serial;
         item.serialNum = serialNum;
@@ -1213,9 +1270,12 @@
       }
     } else {
       const maxPos = inventory.reduce((m, i) => Math.max(m, i.position ?? 0), 0);
+      // For rental items use hire company QR as ID if provided
+      const itemId = (section === 'rental' && rentalId) ? rentalId : genId();
       item = {
-        id: genId(),
+        id: itemId,
         name,
+        section,
         model,
         serial,
         serialNum,
@@ -1242,6 +1302,9 @@
     const item = inventory.find(i => i.id === id);
     if (!item) return;
     document.getElementById('modalTitle').textContent = 'Edit Item';
+    document.getElementById('fSection').value = item.section || 'inhouse';
+    document.getElementById('fRentalId').value = item.section === 'rental' ? item.id : '';
+    toggleRentalQR();
     document.getElementById('fName').value = item.name;
     document.getElementById('fModel').value = item.model || '';
     document.getElementById('fSerial').value = item.serial;
