@@ -1309,18 +1309,18 @@
         setTimeout(() => {
           const code = prompt('Camera unavailable. Enter QR code / Item ID manually:');
           if (code) handleScan(code.trim());
-          closeScanner();
+          // Don't close scanner — stays open for next item
         }, 1000);
       });
   }
 
+  let tick = null; // shared so closeScanResult can resume
+
   function startScanning(video) {
-    // Prefer jsQR (works on all iOS Safari versions). Fall back to BarcodeDetector
-    // only if jsQR isn't loaded for some reason.
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
 
-    const tick = () => {
+    tick = () => {
       if (!scanStream) return; // scanner closed
       if (video.readyState !== video.HAVE_ENOUGH_DATA) {
         scanInterval = requestAnimationFrame(tick);
@@ -1337,9 +1337,9 @@
             inversionAttempts: 'attemptBoth'
           });
           if (code && code.data) {
+            // Pause scanning while result modal is shown, resume after
             cancelAnimationFrame(scanInterval);
             scanInterval = null;
-            closeScanner();
             handleScan(code.data);
             return;
           }
@@ -1355,7 +1355,7 @@
       setTimeout(() => {
         const code = prompt('Enter QR code / Item ID manually:');
         if (code) handleScan(code.trim());
-        closeScanner();
+        // Don't close scanner
       }, 1500);
       return;
     }
@@ -1514,6 +1514,11 @@
 
   function closeScanResult() {
     document.getElementById('scanResultModal').classList.remove('active');
+    // If camera scanner is still open, resume scanning
+    const overlay = document.getElementById('scannerOverlay');
+    if (overlay.classList.contains('active') && !scanInterval) {
+      scanInterval = requestAnimationFrame(tick);
+    }
   }
 
   // ── QR Detail ──
